@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, Phone, PhoneOff, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Trash2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
@@ -223,6 +223,61 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     });
   };
 
+  const downloadTranscript = (format: 'txt' | 'json') => {
+    if (messages.length === 0) {
+      toast({
+        title: 'Sem transcrições',
+        description: 'Não há mensagens para exportar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    if (format === 'txt') {
+      content = messages
+        .map((msg) => {
+          const time = msg.timestamp.toLocaleString('pt-BR');
+          const role = msg.role === 'user' ? 'Você' : 'Assistente';
+          return `[${time}] ${role}: ${msg.transcript}`;
+        })
+        .join('\n\n');
+      filename = `transcricao-vapi-${new Date().toISOString().slice(0, 10)}.txt`;
+      mimeType = 'text/plain';
+    } else {
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        callDuration: formatDuration(callDuration),
+        messages: messages.map((msg) => ({
+          role: msg.role,
+          transcript: msg.transcript,
+          timestamp: msg.timestamp.toISOString(),
+        })),
+      };
+      content = JSON.stringify(exportData, null, 2);
+      filename = `transcricao-vapi-${new Date().toISOString().slice(0, 10)}.json`;
+      mimeType = 'application/json';
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Download iniciado',
+      description: `Transcrição exportada em ${format.toUpperCase()}`,
+    });
+  };
+
   const resetModal = () => {
     setMessages([]);
     setCallDuration(0);
@@ -382,16 +437,39 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                   </div>
                 </div>
 
-                <div className="flex justify-center gap-4">
-                  <Button
-                    onClick={endCall}
-                    variant="destructive"
-                    disabled={!isCallActive}
-                    className="min-w-[140px]"
-                  >
-                    <PhoneOff className="mr-2 h-4 w-4" />
-                    Encerrar
-                  </Button>
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-center gap-4">
+                    <Button
+                      onClick={endCall}
+                      variant="destructive"
+                      disabled={!isCallActive}
+                      className="min-w-[140px]"
+                    >
+                      <PhoneOff className="mr-2 h-4 w-4" />
+                      Encerrar
+                    </Button>
+                  </div>
+
+                  {messages.length > 0 && !isCallActive && (
+                    <div className="flex justify-center gap-2">
+                      <Button
+                        onClick={() => downloadTranscript('txt')}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Download className="mr-2 h-3 w-3" />
+                        Baixar TXT
+                      </Button>
+                      <Button
+                        onClick={() => downloadTranscript('json')}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Download className="mr-2 h-3 w-3" />
+                        Baixar JSON
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
