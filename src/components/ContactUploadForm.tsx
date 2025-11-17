@@ -7,6 +7,14 @@ import { Upload, CheckCircle2, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ProgressSteps from "@/components/ProgressSteps";
 import SuccessScreen from "@/components/SuccessScreen";
+import CSVPreview from "@/components/CSVPreview";
+import { parseCSV } from "@/utils/csvParser";
+
+interface Contact {
+  name: string;
+  phone: string;
+  [key: string]: string;
+}
 
 const ContactUploadForm = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -15,17 +23,43 @@ const ContactUploadForm = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [campaignData, setCampaignData] = useState({ contactCount: 0, startTime: "" });
+  const [showPreview, setShowPreview] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [isValidCSV, setIsValidCSV] = useState(false);
+  const [csvError, setCsvError] = useState("");
   const { toast } = useToast();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       if (selectedFile.type === "text/csv" || selectedFile.name.endsWith(".csv")) {
         setFile(selectedFile);
-        toast({
-          title: "Arquivo selecionado",
-          description: `${selectedFile.name} foi carregado com sucesso.`,
-        });
+        
+        // Parse and validate CSV
+        const result = await parseCSV(selectedFile);
+        
+        if (result.isValid) {
+          setContacts(result.contacts);
+          setIsValidCSV(true);
+          setCsvError("");
+          setShowPreview(true);
+          
+          toast({
+            title: "Arquivo validado",
+            description: `${result.contacts.length} contatos encontrados.`,
+          });
+        } else {
+          setContacts([]);
+          setIsValidCSV(false);
+          setCsvError(result.errorMessage || "Erro ao processar arquivo");
+          setShowPreview(true);
+          
+          toast({
+            title: "Erro no arquivo",
+            description: result.errorMessage,
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
           title: "Formato inválido",
@@ -34,6 +68,20 @@ const ContactUploadForm = () => {
         });
       }
     }
+  };
+
+  const handlePreviewConfirm = () => {
+    setShowPreview(false);
+  };
+
+  const handlePreviewCancel = () => {
+    setFile(null);
+    setContacts([]);
+    setIsValidCSV(false);
+    setCsvError("");
+    setShowPreview(false);
+    const fileInput = document.getElementById("file-upload") as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +123,7 @@ const ContactUploadForm = () => {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Prepare campaign data
-      const contactCount = 10; // This would come from parsing the CSV file
+      const contactCount = contacts.length;
       const startTime = new Date().toLocaleTimeString("pt-BR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -100,11 +148,17 @@ const ContactUploadForm = () => {
     setFile(null);
     setMessage("");
     setCurrentStep(0);
+    setContacts([]);
+    setIsValidCSV(false);
+    setCsvError("");
+    setShowPreview(false);
     const fileInput = document.getElementById("file-upload") as HTMLInputElement;
     if (fileInput) fileInput.value = "";
   };
 
-  const contactCount = file ? "10 Contatos para ligar" : "Aguardando arquivo CSV";
+  const contactCount = file && contacts.length > 0 
+    ? `${contacts.length} Contatos para ligar` 
+    : "Aguardando arquivo CSV";
 
   if (showSuccess) {
     return (
@@ -136,6 +190,15 @@ const ContactUploadForm = () => {
               <div className="py-4">
                 <ProgressSteps currentStep={currentStep} />
               </div>
+            ) : showPreview ? (
+              <CSVPreview
+                contacts={contacts.slice(0, 5)}
+                totalCount={contacts.length}
+                onConfirm={handlePreviewConfirm}
+                onCancel={handlePreviewCancel}
+                isValid={isValidCSV}
+                errorMessage={csvError}
+              />
             ) : (
               <form onSubmit={handleSubmit} className="space-y-7">
                 {/* File Upload */}
