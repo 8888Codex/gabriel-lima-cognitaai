@@ -140,11 +140,11 @@ const ContactUploadForm = () => {
         minute: "2-digit"
       });
 
-      // Get webhook URL from localStorage or use default
+      // Get webhook URL and headers from localStorage or use default
       const webhookConfig = localStorage.getItem('webhook_config');
-      const webhookUrl = webhookConfig 
-        ? JSON.parse(webhookConfig).url 
-        : "https://nwhminds.cognitaai.com.br/webhook/ativacao-carol";
+      const parsedConfig = webhookConfig ? JSON.parse(webhookConfig) : {};
+      const webhookUrl = parsedConfig.url || "https://nwhminds.cognitaai.com.br/webhook/ativacao-carol";
+      const webhookHeaders = parsedConfig.headers || {};
       
       const MAX_RETRIES = 3;
       const RETRY_DELAY = 2000; // 2 seconds between retries
@@ -187,6 +187,7 @@ const ContactUploadForm = () => {
               totalContacts: contactsWithStatus.length,
               retryAttempt: retryCount,
               webhookUrl: webhookUrl, // Include webhook URL in payload
+              customHeaders: webhookHeaders, // Include custom headers
             };
             
             console.log(`📨 [Tentativa ${retryCount + 1}/${MAX_RETRIES + 1}] Enviando via Edge Function:`, JSON.stringify(payload, null, 2));
@@ -229,7 +230,21 @@ const ContactUploadForm = () => {
                   
                   // Check if the proxy reported an error
                   if (responseData && !responseData.success) {
-                    throw new Error(responseData.error || `Webhook retornou erro: ${responseData.status}`);
+                    const errorBody = responseData.body;
+                    let errorMsg = responseData.error || `Webhook retornou erro: ${responseData.status}`;
+                    
+                    // Add message and hint from n8n or other webhook errors
+                    if (errorBody?.message) {
+                      errorMsg += `\n\n💬 ${errorBody.message}`;
+                    }
+                    if (errorBody?.hint) {
+                      errorMsg += `\n\n💡 Dica: ${errorBody.hint}`;
+                    }
+                    
+                    const error: any = new Error(errorMsg);
+                    error.status = responseData.status;
+                    error.webhookUrl = responseData.webhookUrl;
+                    throw error;
                   }
                 } catch (e: any) {
                   if (e.message.includes('Webhook')) {
@@ -265,16 +280,38 @@ const ContactUploadForm = () => {
               description: `Enviado para ${contactsWithStatus[i].name}`,
             });
 
-          } catch (error) {
+          } catch (error: any) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const isTimeout = error instanceof Error && error.name === 'AbortError';
+            const is404 = error.status === 404;
             
             console.error(`❌ [${i + 1}/${contactsWithStatus.length}] Erro (tentativa ${retryCount + 1}/${MAX_RETRIES + 1}):`, {
               contato: contactsWithStatus[i].name,
               erro: errorMessage,
-              tipo: isTimeout ? 'Timeout' : 'Erro de requisição',
+              status: error.status,
+              webhookUrl: error.webhookUrl,
+              tipo: isTimeout ? 'Timeout' : is404 ? '404 - Endpoint não encontrado' : 'Erro de requisição',
               stack: error instanceof Error ? error.stack : undefined
             });
+            
+            // Stop retrying on 404 (configuration issue, not transient error)
+            if (is404) {
+              console.error(`🚫 [${i + 1}/${contactsWithStatus.length}] Erro 404 detectado - parando retentativas (problema de configuração)`);
+              
+              setContacts(prev => 
+                prev.map((c, idx) => 
+                  idx === i ? { ...c, status: "failed" as const, retryCount } : c
+                )
+              );
+
+              toast({
+                title: "Webhook não encontrado",
+                description: errorMessage.split('\n')[0] + ` (URL: ${error.webhookUrl || webhookUrl})`,
+                variant: "destructive"
+              });
+              
+              break; // Stop retry loop for this contact
+            }
             
             retryCount++;
 

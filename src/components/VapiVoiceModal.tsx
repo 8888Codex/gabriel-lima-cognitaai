@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2, ChevronDown, Settings, RefreshCw, AlertCircle } from 'lucide-react';
@@ -163,6 +164,8 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookHeaders, setWebhookHeaders] = useState('{}');
+  const [useTestEndpoint, setUseTestEndpoint] = useState(false);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   
@@ -219,6 +222,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       try {
         const config = JSON.parse(storedWebhook);
         setWebhookUrl(config.url || '');
+        setWebhookHeaders(config.headers ? JSON.stringify(config.headers, null, 2) : '{}');
         setWebhookStatus(config.status || 'unknown');
       } catch (error) {
         console.error('Error loading webhook config:', error);
@@ -494,11 +498,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   };
 
   const testWebhook = async () => {
-    if (!webhookUrl) {
+    const effectiveUrl = useTestEndpoint 
+      ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-test`
+      : webhookUrl;
+
+    if (!effectiveUrl) {
       toast({
         variant: "destructive",
         title: "URL do Webhook Obrigatória",
-        description: "Por favor, insira a URL do webhook.",
+        description: "Por favor, insira a URL do webhook ou selecione o endpoint de teste.",
       });
       return;
     }
@@ -518,13 +526,26 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         timestamp: new Date().toISOString()
       };
 
-      console.log("🧪 Testando webhook:", webhookUrl);
+      console.log("🧪 Testando webhook:", effectiveUrl);
       console.log("📤 Payload de teste:", testPayload);
 
+      // Parse custom headers if provided
+      let customHeaders = {};
+      try {
+        if (webhookHeaders.trim()) {
+          customHeaders = JSON.parse(webhookHeaders);
+        }
+      } catch (e) {
+        console.warn("⚠️ Headers inválidos, usando headers padrão");
+      }
+
       const startTime = Date.now();
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(effectiveUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...customHeaders 
+        },
         body: JSON.stringify(testPayload),
         signal: AbortSignal.timeout(10000)
       });
@@ -538,8 +559,20 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
       if (response.ok) {
         setWebhookStatus('online');
+        
+        // Parse headers for storage
+        let headersToStore = {};
+        try {
+          if (webhookHeaders.trim()) {
+            headersToStore = JSON.parse(webhookHeaders);
+          }
+        } catch (e) {
+          // Invalid JSON, save as empty object
+        }
+        
         const config = {
           url: webhookUrl,
+          headers: headersToStore,
           lastTested: new Date().toISOString(),
           status: 'online',
           latency
@@ -548,7 +581,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
         toast({
           title: "✅ Webhook Online",
-          description: `Resposta recebida em ${latency}ms. Status: ${response.status}`,
+          description: `Resposta recebida em ${latency}ms. Status: ${response.status}${useTestEndpoint ? ' (Endpoint de teste)' : ''}`,
         });
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1070,10 +1103,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                           value={webhookUrl}
                           onChange={(e) => setWebhookUrl(e.target.value)}
                           className="flex-1"
+                          disabled={useTestEndpoint}
                         />
                         <Button
                           onClick={testWebhook}
-                          disabled={!webhookUrl || isTestingWebhook}
+                          disabled={(!webhookUrl && !useTestEndpoint) || isTestingWebhook}
                           variant="outline"
                           size="icon"
                         >
@@ -1084,6 +1118,22 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                           )}
                         </Button>
                       </div>
+                      
+                      {/* Test Endpoint Toggle */}
+                      <div className="flex items-center gap-2 mt-2">
+                        <Checkbox
+                          id="use-test-endpoint"
+                          checked={useTestEndpoint}
+                          onCheckedChange={(checked) => setUseTestEndpoint(checked as boolean)}
+                        />
+                        <label
+                          htmlFor="use-test-endpoint"
+                          className="text-sm text-muted-foreground cursor-pointer"
+                        >
+                          Usar endpoint de teste interno (webhook-test)
+                        </label>
+                      </div>
+                      
                       {webhookStatus !== 'unknown' && (
                         <div className={`flex items-center gap-1 text-xs ${
                           webhookStatus === 'online' ? 'text-green-600' : 'text-destructive'
@@ -1099,6 +1149,22 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       <p className="text-xs text-muted-foreground">
                         URL para envio de dados das chamadas (integração com n8n, Make, etc)
                       </p>
+                      
+                      {/* Custom Headers */}
+                      <div className="space-y-2 mt-3">
+                        <label className="text-sm font-medium text-foreground">
+                          Headers Personalizados (JSON)
+                        </label>
+                        <Textarea
+                          placeholder='{"Authorization": "Bearer token", "X-Custom-Header": "value"}'
+                          value={webhookHeaders}
+                          onChange={(e) => setWebhookHeaders(e.target.value)}
+                          className="font-mono text-xs min-h-[80px]"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Headers opcionais para autenticação ou configuração do webhook (formato JSON)
+                        </p>
+                      </div>
                     </div>
 
                     {/* Configurações Avançadas - Analysis Plan */}
