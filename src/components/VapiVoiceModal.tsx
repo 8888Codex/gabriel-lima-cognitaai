@@ -4,7 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2, ChevronDown, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
@@ -82,6 +85,16 @@ interface CallInfo {
   analysis?: CallAnalysis;
 }
 
+type SuccessEvaluationRubric = 'NumericScale' | 'DescriptiveScale' | 'Checklist' | 'Matrix' | 'PercentageScale' | 'LikertScale' | 'AutomaticRubric' | 'PassFail';
+
+interface AnalysisPlan {
+  summaryPrompt?: string;
+  structuredDataPrompt?: string;
+  structuredDataSchema?: Record<string, any>;
+  successEvaluationPrompt?: string;
+  successEvaluationRubric?: SuccessEvaluationRubric;
+}
+
 interface VapiVoiceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -103,6 +116,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  
+  // Estados para Analysis Plan
+  const [summaryPrompt, setSummaryPrompt] = useState('');
+  const [structuredDataPrompt, setStructuredDataPrompt] = useState('');
+  const [structuredDataSchema, setStructuredDataSchema] = useState('');
+  const [successEvaluationPrompt, setSuccessEvaluationPrompt] = useState('');
+  const [successEvaluationRubric, setSuccessEvaluationRubric] = useState<SuccessEvaluationRubric>('NumericScale');
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -113,12 +134,22 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
     if (savedCredentials) {
       try {
-        const { publicKey: savedPublicKey, assistantId: savedAssistantId } = JSON.parse(savedCredentials);
+        const parsed = JSON.parse(savedCredentials);
+        const { publicKey: savedPublicKey, assistantId: savedAssistantId, analysisPlan } = parsed;
         if (savedPublicKey && savedAssistantId) {
           setPublicKey(savedPublicKey);
           setAssistantId(savedAssistantId);
           setHasStoredCredentials(true);
           setIsEditingCredentials(false);
+          
+          // Carregar analysisPlan se existir
+          if (analysisPlan) {
+            setSummaryPrompt(analysisPlan.summaryPrompt || '');
+            setStructuredDataPrompt(analysisPlan.structuredDataPrompt || '');
+            setStructuredDataSchema(analysisPlan.structuredDataSchema ? JSON.stringify(analysisPlan.structuredDataSchema, null, 2) : '');
+            setSuccessEvaluationPrompt(analysisPlan.successEvaluationPrompt || '');
+            setSuccessEvaluationRubric(analysisPlan.successEvaluationRubric || 'NumericScale');
+          }
         }
       } catch (error) {
         console.error('Error loading saved credentials:', error);
@@ -341,11 +372,32 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const startCall = () => {
     setIsConnecting(true);
     
-    // Salvar credenciais no localStorage
+    // Construir analysisPlan se houver configurações
+    const analysisPlan: AnalysisPlan = {};
+    if (summaryPrompt.trim()) analysisPlan.summaryPrompt = summaryPrompt.trim();
+    if (structuredDataPrompt.trim()) analysisPlan.structuredDataPrompt = structuredDataPrompt.trim();
+    if (structuredDataSchema.trim()) {
+      try {
+        analysisPlan.structuredDataSchema = JSON.parse(structuredDataSchema);
+      } catch (e) {
+        toast({
+          title: 'Erro no Schema JSON',
+          description: 'O schema de dados estruturados não é um JSON válido',
+          variant: 'destructive',
+        });
+        setIsConnecting(false);
+        return;
+      }
+    }
+    if (successEvaluationPrompt.trim()) analysisPlan.successEvaluationPrompt = successEvaluationPrompt.trim();
+    if (successEvaluationRubric) analysisPlan.successEvaluationRubric = successEvaluationRubric;
+    
+    // Salvar credenciais e analysisPlan no localStorage
     try {
       localStorage.setItem(VAPI_STORAGE_KEY, JSON.stringify({
         publicKey,
-        assistantId
+        assistantId,
+        analysisPlan: Object.keys(analysisPlan).length > 0 ? analysisPlan : undefined
       }));
     } catch (error) {
       console.error('Error saving credentials:', error);
@@ -361,7 +413,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
 
     try {
-      vapiInstance.start(assistantId);
+      // Se houver analysisPlan configurado, enviar com assistantOverrides
+      if (Object.keys(analysisPlan).length > 0) {
+        vapiInstance.start(assistantId, {
+          analysisPlan
+        } as any);
+      } else {
+        vapiInstance.start(assistantId);
+      }
     } catch (error) {
       console.error('Error starting call:', error);
       toast({
@@ -392,6 +451,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setAssistantId('');
     setHasStoredCredentials(false);
     setIsEditingCredentials(true);
+    
+    // Limpar também as configurações do analysisPlan
+    setSummaryPrompt('');
+    setStructuredDataPrompt('');
+    setStructuredDataSchema('');
+    setSuccessEvaluationPrompt('');
+    setSuccessEvaluationRubric('NumericScale');
+    
     toast({
       title: 'Credenciais removidas',
       description: 'As credenciais salvas foram apagadas',
@@ -674,6 +741,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                     <p className="text-xs text-muted-foreground text-center">
                       ✓ Credenciais configuradas e seguras
                     </p>
+                    
+                    {(summaryPrompt || structuredDataPrompt || structuredDataSchema || successEvaluationPrompt) && (
+                      <div className="flex items-center justify-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
+                        <Settings className="h-3 w-3 text-primary" />
+                        <span className="text-xs text-primary font-medium">
+                          Análise automática configurada
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   // Modo edição - campos editáveis
@@ -704,6 +780,115 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       />
                     </div>
 
+                    {/* Configurações Avançadas - Analysis Plan */}
+                    <Collapsible 
+                      open={showAdvancedConfig} 
+                      onOpenChange={setShowAdvancedConfig}
+                      className="border rounded-lg p-4 space-y-3"
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                          <div className="flex items-center gap-2">
+                            <Settings className="h-4 w-4" />
+                            <span className="font-medium">Configurações de Análise (Opcional)</span>
+                          </div>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedConfig ? 'rotate-180' : ''}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent className="space-y-3 pt-2">
+                        <p className="text-xs text-muted-foreground">
+                          Configure como a chamada será analisada automaticamente ao final.
+                        </p>
+                        
+                        {/* Summary Prompt */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Prompt de Resumo
+                          </label>
+                          <Textarea
+                            placeholder="Ex: Resuma a ligação em 2-3 frases, destacando o motivo principal e o resultado."
+                            value={summaryPrompt}
+                            onChange={(e) => setSummaryPrompt(e.target.value)}
+                            className="w-full min-h-[60px] text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Como o sistema deve criar o resumo da chamada
+                          </p>
+                        </div>
+
+                        {/* Structured Data Prompt */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Prompt de Dados Estruturados
+                          </label>
+                          <Textarea
+                            placeholder="Ex: Extraia os dados principais da conversa seguindo o schema definido."
+                            value={structuredDataPrompt}
+                            onChange={(e) => setStructuredDataPrompt(e.target.value)}
+                            className="w-full min-h-[60px] text-sm"
+                          />
+                        </div>
+
+                        {/* Structured Data Schema */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Schema de Dados (JSON)
+                          </label>
+                          <Textarea
+                            placeholder={`{\n  "type": "object",\n  "properties": {\n    "customerName": { "type": "string" },\n    "issueResolved": { "type": "boolean" }\n  },\n  "required": ["issueResolved"]\n}`}
+                            value={structuredDataSchema}
+                            onChange={(e) => setStructuredDataSchema(e.target.value)}
+                            className="w-full min-h-[120px] text-sm font-mono"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            JSON Schema para estruturar os dados extraídos
+                          </p>
+                        </div>
+
+                        {/* Success Evaluation Prompt */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Prompt de Avaliação de Sucesso
+                          </label>
+                          <Textarea
+                            placeholder="Ex: Avalie se a chamada foi bem-sucedida considerando: resolução do problema e satisfação do cliente."
+                            value={successEvaluationPrompt}
+                            onChange={(e) => setSuccessEvaluationPrompt(e.target.value)}
+                            className="w-full min-h-[60px] text-sm"
+                          />
+                        </div>
+
+                        {/* Success Evaluation Rubric */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Rubrica de Avaliação
+                          </label>
+                          <Select
+                            value={successEvaluationRubric}
+                            onValueChange={(value) => setSuccessEvaluationRubric(value as SuccessEvaluationRubric)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="NumericScale">Escala Numérica (1-10)</SelectItem>
+                              <SelectItem value="DescriptiveScale">Escala Descritiva</SelectItem>
+                              <SelectItem value="Checklist">Lista de Verificação</SelectItem>
+                              <SelectItem value="Matrix">Matriz de Critérios</SelectItem>
+                              <SelectItem value="PercentageScale">Escala Percentual (0-100%)</SelectItem>
+                              <SelectItem value="LikertScale">Escala Likert</SelectItem>
+                              <SelectItem value="AutomaticRubric">Rubrica Automática</SelectItem>
+                              <SelectItem value="PassFail">Passou/Falhou</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Como medir o sucesso da chamada
+                          </p>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
                     <div className="flex gap-2">
                       <Button
                         onClick={startCall}
@@ -723,12 +908,28 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       {hasStoredCredentials && (
                         <Button
                           onClick={() => {
-                            // Recarregar credenciais originais
+                            // Recarregar credenciais originais e analysisPlan
                             const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
                             if (savedCredentials) {
-                              const { publicKey: savedPublicKey, assistantId: savedAssistantId } = JSON.parse(savedCredentials);
-                              setPublicKey(savedPublicKey);
-                              setAssistantId(savedAssistantId);
+                              const parsed = JSON.parse(savedCredentials);
+                              setPublicKey(parsed.publicKey);
+                              setAssistantId(parsed.assistantId);
+                              
+                              // Recarregar analysisPlan
+                              if (parsed.analysisPlan) {
+                                setSummaryPrompt(parsed.analysisPlan.summaryPrompt || '');
+                                setStructuredDataPrompt(parsed.analysisPlan.structuredDataPrompt || '');
+                                setStructuredDataSchema(parsed.analysisPlan.structuredDataSchema ? JSON.stringify(parsed.analysisPlan.structuredDataSchema, null, 2) : '');
+                                setSuccessEvaluationPrompt(parsed.analysisPlan.successEvaluationPrompt || '');
+                                setSuccessEvaluationRubric(parsed.analysisPlan.successEvaluationRubric || 'NumericScale');
+                              } else {
+                                // Limpar campos se não houver analysisPlan salvo
+                                setSummaryPrompt('');
+                                setStructuredDataPrompt('');
+                                setStructuredDataSchema('');
+                                setSuccessEvaluationPrompt('');
+                                setSuccessEvaluationRubric('NumericScale');
+                              }
                             }
                             setIsEditingCredentials(false);
                           }}
