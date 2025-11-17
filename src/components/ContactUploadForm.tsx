@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardGradient, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, CheckCircle2, Phone } from "lucide-react";
@@ -196,7 +196,7 @@ const ContactUploadForm = () => {
           <p className="text-base text-muted-foreground font-medium">{contactCount}</p>
         </div>
 
-        <Card className="shadow-2xl border-border/50 backdrop-blur-sm bg-card/95 animate-slide-up" style={{
+        <CardGradient className="shadow-2xl backdrop-blur-sm animate-slide-up" style={{
         animationDelay: "0.1s"
       }}>
           <CardContent className="p-8">
@@ -258,12 +258,12 @@ const ContactUploadForm = () => {
                 </div>
 
                 {/* Submit Button */}
-                <Button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-7 text-base rounded-xl transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                <Button type="submit" disabled={isSubmitting} variant="gradient" className="w-full font-semibold py-7 text-base rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
                   Submit
                 </Button>
               </form>}
           </CardContent>
-        </Card>
+        </CardGradient>
 
         {/* Footer */}
         <div className="mt-6 text-center animate-slide-up" style={{
