@@ -135,6 +135,32 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     };
   }, [vapi]);
 
+  // Função para adicionar ou atualizar mensagens agrupando falas consecutivas
+  const addOrUpdateMessage = (newMessage: Message) => {
+    setMessages((prevMessages) => {
+      if (prevMessages.length === 0) {
+        return [newMessage];
+      }
+      
+      const lastMessage = prevMessages[prevMessages.length - 1];
+      const timeDifference = newMessage.timestamp.getTime() - lastMessage.timestamp.getTime();
+      
+      // Se for do mesmo role e menos de 3 segundos de diferença, agrupar
+      if (lastMessage.role === newMessage.role && timeDifference < 3000) {
+        const updatedMessages = [...prevMessages];
+        updatedMessages[updatedMessages.length - 1] = {
+          ...lastMessage,
+          transcript: lastMessage.transcript + ' ' + newMessage.transcript,
+          timestamp: newMessage.timestamp,
+        };
+        return updatedMessages;
+      }
+      
+      // Caso contrário, adicionar nova mensagem
+      return [...prevMessages, newMessage];
+    });
+  };
+
   const initializeVapi = () => {
     if (!publicKey.trim()) {
       toast({
@@ -199,14 +225,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
       vapiInstance.on('message', (message: any) => {
         if (message.type === 'transcript' && message.transcript) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: message.role,
-              transcript: message.transcript,
-              timestamp: new Date(),
-            },
-          ]);
+          addOrUpdateMessage({
+            role: message.role,
+            transcript: message.transcript,
+            timestamp: new Date(),
+          });
         }
       });
 
