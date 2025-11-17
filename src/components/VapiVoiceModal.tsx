@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, Phone, PhoneOff, Trash2, Download } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Eye, EyeOff, Edit2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
@@ -30,6 +30,8 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showConfig, setShowConfig] = useState(true);
+  const [isEditingCredentials, setIsEditingCredentials] = useState(false);
+  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -41,11 +43,17 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     if (savedCredentials) {
       try {
         const { publicKey: savedPublicKey, assistantId: savedAssistantId } = JSON.parse(savedCredentials);
-        setPublicKey(savedPublicKey || '');
-        setAssistantId(savedAssistantId || '');
+        if (savedPublicKey && savedAssistantId) {
+          setPublicKey(savedPublicKey);
+          setAssistantId(savedAssistantId);
+          setHasStoredCredentials(true);
+          setIsEditingCredentials(false);
+        }
       } catch (error) {
         console.error('Error loading saved credentials:', error);
       }
+    } else {
+      setIsEditingCredentials(true);
     }
   }, []);
 
@@ -217,10 +225,19 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     localStorage.removeItem(VAPI_STORAGE_KEY);
     setPublicKey('');
     setAssistantId('');
+    setHasStoredCredentials(false);
+    setIsEditingCredentials(true);
     toast({
       title: 'Credenciais removidas',
       description: 'As credenciais salvas foram apagadas',
     });
+  };
+
+  const maskCredential = (value: string) => {
+    if (!value || value.length < 8) return value;
+    const start = value.substring(0, 4);
+    const end = value.substring(value.length - 4);
+    return `${start}${'•'.repeat(Math.min(value.length - 8, 20))}${end}`;
   };
 
   const downloadTranscript = (format: 'txt' | 'json') => {
@@ -313,65 +330,148 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           {showConfig ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
               <div className="w-full max-w-md space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Vapi Public Key
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Digite sua Public Key"
-                    value={publicKey}
-                    onChange={(e) => setPublicKey(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Assistant ID
-                  </label>
-                  <Input
-                    type="text"
-                    placeholder="Digite o Assistant ID"
-                    value={assistantId}
-                    onChange={(e) => setAssistantId(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
+                {hasStoredCredentials && !isEditingCredentials ? (
+                  // Modo visualização - credenciais mascaradas
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Vapi Public Key
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          value={maskCredential(publicKey)}
+                          readOnly
+                          className="flex-1 bg-muted"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Assistant ID
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          value={maskCredential(assistantId)}
+                          readOnly
+                          className="flex-1 bg-muted"
+                        />
+                      </div>
+                    </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    onClick={startCall}
-                    disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
-                    className="flex-1"
-                    variant="gradient"
-                  >
-                    {isConnecting ? (
-                      <>Conectando...</>
-                    ) : (
-                      <>
-                        <Phone className="mr-2 h-4 w-4" />
-                        Iniciar Chamada
-                      </>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={startCall}
+                        disabled={isConnecting}
+                        className="flex-1"
+                        variant="gradient"
+                      >
+                        {isConnecting ? (
+                          <>Conectando...</>
+                        ) : (
+                          <>
+                            <Phone className="mr-2 h-4 w-4" />
+                            Iniciar Chamada
+                          </>
+                        )}
+                      </Button>
+                      
+                      <Button
+                        onClick={() => setIsEditingCredentials(true)}
+                        variant="outline"
+                        size="icon"
+                        title="Editar credenciais"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      
+                      <Button
+                        onClick={clearCredentials}
+                        variant="outline"
+                        size="icon"
+                        title="Limpar credenciais salvas"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground text-center">
+                      ✓ Credenciais configuradas e seguras
+                    </p>
+                  </div>
+                ) : (
+                  // Modo edição - campos editáveis
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Vapi Public Key
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="Digite sua Public Key"
+                        value={publicKey}
+                        onChange={(e) => setPublicKey(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Assistant ID
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="Digite o Assistant ID"
+                        value={assistantId}
+                        onChange={(e) => setAssistantId(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={startCall}
+                        disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
+                        className="flex-1"
+                        variant="gradient"
+                      >
+                        {isConnecting ? (
+                          <>Conectando...</>
+                        ) : (
+                          <>
+                            <Phone className="mr-2 h-4 w-4" />
+                            Iniciar Chamada
+                          </>
+                        )}
+                      </Button>
+                      
+                      {hasStoredCredentials && (
+                        <Button
+                          onClick={() => {
+                            // Recarregar credenciais originais
+                            const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
+                            if (savedCredentials) {
+                              const { publicKey: savedPublicKey, assistantId: savedAssistantId } = JSON.parse(savedCredentials);
+                              setPublicKey(savedPublicKey);
+                              setAssistantId(savedAssistantId);
+                            }
+                            setIsEditingCredentials(false);
+                          }}
+                          variant="outline"
+                        >
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {hasStoredCredentials && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Editando credenciais salvas
+                      </p>
                     )}
-                  </Button>
-                  
-                  {(publicKey || assistantId) && (
-                    <Button
-                      onClick={clearCredentials}
-                      variant="outline"
-                      size="icon"
-                      title="Limpar credenciais salvas"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                
-                {(publicKey || assistantId) && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    ✓ Credenciais salvas e carregadas automaticamente
-                  </p>
+                  </div>
                 )}
               </div>
             </div>
