@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardGradient, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, CheckCircle2, Phone, PhoneOutgoing } from "lucide-react";
+import { Upload, CheckCircle2, Phone, PhoneOutgoing, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ProgressSteps from "@/components/ProgressSteps";
 import SuccessScreen from "@/components/SuccessScreen";
 import CSVPreview from "@/components/CSVPreview";
@@ -36,6 +37,9 @@ const ContactUploadForm = () => {
   const [isValidCSV, setIsValidCSV] = useState(false);
   const [csvError, setCsvError] = useState("");
   const [isOutboundModalOpen, setIsOutboundModalOpen] = useState(false);
+  const [showWebhookFallbackDialog, setShowWebhookFallbackDialog] = useState(false);
+  const [webhookTestError, setWebhookTestError] = useState("");
+  const [pendingSubmit, setPendingSubmit] = useState(false);
   const {
     toast
   } = useToast();
@@ -109,6 +113,63 @@ const ContactUploadForm = () => {
     const fileInput = document.getElementById("file-upload") as HTMLInputElement;
     if (fileInput) fileInput.value = "";
   };
+
+  // Test webhook before starting campaign
+  const testWebhookConnection = async (webhookUrl: string, customHeaders: any): Promise<boolean> => {
+    try {
+      console.log("🧪 Testando conexão com webhook:", webhookUrl);
+      
+      const testPayload = {
+        test: true,
+        contact: {
+          name: "Teste Automático",
+          phone: "+5511999999999",
+          email: "teste@sistema.com"
+        },
+        message: "Teste de conexão automático",
+        timestamp: new Date().toISOString(),
+        webhookUrl,
+        customHeaders
+      };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for test
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-webhook`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(testPayload),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const responseText = await response.text();
+        let responseData = null;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          // Not JSON
+        }
+
+        console.error("❌ Teste do webhook falhou:", response.status, responseData);
+        return false;
+      }
+
+      console.log("✅ Teste do webhook bem-sucedido");
+      return true;
+    } catch (error) {
+      console.error("❌ Erro ao testar webhook:", error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
@@ -127,6 +188,69 @@ const ContactUploadForm = () => {
       });
       return;
     }
+
+    // Get webhook URL and headers from localStorage or use default
+    const webhookConfig = localStorage.getItem('webhook_config');
+    const parsedConfig = webhookConfig ? JSON.parse(webhookConfig) : {};
+    const webhookUrl = parsedConfig.url || "https://nwhminds.cognitaai.com.br/webhook/ativacao-carol";
+    const webhookHeaders = parsedConfig.headers || {};
+
+    // Test webhook connection first
+    toast({
+      title: "Verificando webhook...",
+      description: "Testando conexão com o webhook de produção",
+    });
+
+    const isWebhookOnline = await testWebhookConnection(webhookUrl, webhookHeaders);
+
+    if (!isWebhookOnline) {
+      // Webhook is offline, suggest fallback
+      setWebhookTestError(`O webhook de produção (${webhookUrl}) não está acessível. Isso pode ocorrer se o workflow do n8n não estiver ativo.`);
+      setShowWebhookFallbackDialog(true);
+      setPendingSubmit(true);
+      return;
+    }
+
+    // Webhook is online, proceed with sending
+    await startSending();
+  };
+
+  const handleUseFallback = () => {
+    // Update config to use test endpoint
+    const testEndpointUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-test`;
+    const config = {
+      url: testEndpointUrl,
+      headers: {},
+      useTestEndpoint: true,
+      lastTested: new Date().toISOString(),
+      status: 'online'
+    };
+    localStorage.setItem('webhook_config', JSON.stringify(config));
+
+    toast({
+      title: "Usando endpoint de teste",
+      description: "Os envios usarão o webhook-test interno para validação",
+    });
+
+    setShowWebhookFallbackDialog(false);
+    setPendingSubmit(false);
+    
+    // Start sending with test endpoint
+    startSending();
+  };
+
+  const handleCancelSending = () => {
+    setShowWebhookFallbackDialog(false);
+    setPendingSubmit(false);
+    
+    toast({
+      title: "Envio cancelado",
+      description: "Configure e ative seu webhook de produção antes de enviar",
+      variant: "destructive"
+    });
+  };
+
+  const startSending = async () => {
     setIsSubmitting(true);
     setSendingProgress(true);
     
@@ -509,6 +633,41 @@ const ContactUploadForm = () => {
         assistantId={vapiAssistantId}
         phoneNumberId={vapiPhoneNumberId}
       />
+
+      {/* Webhook Fallback Dialog */}
+      <AlertDialog open={showWebhookFallbackDialog} onOpenChange={setShowWebhookFallbackDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Webhook de Produção Offline
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-sm">{webhookTestError}</p>
+              
+              <div className="bg-muted/50 p-3 rounded-lg space-y-2">
+                <p className="text-sm font-medium text-foreground">O que você deseja fazer?</p>
+                <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+                  <li>✅ <strong>Usar endpoint de teste:</strong> Validar o fluxo completo usando o webhook-test interno (recomendado para testes)</li>
+                  <li>⚙️ <strong>Configurar webhook:</strong> Ativar o workflow no n8n e configurar a URL de produção</li>
+                </ul>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                💡 <strong>Dica:</strong> Com o endpoint de teste ativo, todos os dados serão enviados e logados no backend, mas não chegarão ao n8n. Perfeito para validar que seu CSV e mensagens estão corretos.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelSending}>
+              Cancelar Envio
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleUseFallback} className="bg-primary">
+              Usar Endpoint de Teste
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>;
 };
 export default ContactUploadForm;
