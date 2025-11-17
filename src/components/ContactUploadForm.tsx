@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardGradient, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, CheckCircle2, Phone, PhoneOutgoing, AlertTriangle } from "lucide-react";
+import { Upload, CheckCircle2, Phone, PhoneOutgoing, AlertTriangle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ProgressSteps from "@/components/ProgressSteps";
@@ -23,6 +23,7 @@ const ContactUploadForm = () => {
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [sendingProgress, setSendingProgress] = useState(false);
@@ -205,12 +206,14 @@ const ContactUploadForm = () => {
     const webhookHeaders = parsedConfig.headers || {};
 
     // Test webhook connection first
+    setIsTestingWebhook(true);
     toast({
-      title: "Verificando webhook...",
+      title: "🧪 Verificando webhook...",
       description: "Testando conexão com o webhook de produção",
     });
 
     const isWebhookOnline = await testWebhookConnection(webhookUrl, webhookHeaders);
+    setIsTestingWebhook(false);
 
     if (!isWebhookOnline) {
       // Webhook is offline, suggest fallback
@@ -603,8 +606,20 @@ const ContactUploadForm = () => {
                 </div>
 
                 {/* Submit Button */}
-                <Button type="submit" disabled={isSubmitting} variant="gradient" className="w-full font-semibold py-7 text-base rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
-                  Submit
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting || isTestingWebhook} 
+                  variant="gradient" 
+                  className="w-full font-semibold py-7 text-base rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isTestingWebhook ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Verificando webhook...
+                    </>
+                  ) : (
+                    "Enviar Mensagens"
+                  )}
                 </Button>
                 
                 {/* Outbound Calling Button */}
