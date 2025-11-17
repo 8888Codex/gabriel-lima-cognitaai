@@ -12,8 +12,9 @@ import { parseCSV } from "@/utils/csvParser";
 interface Contact {
   name: string;
   phone: string;
-  status?: "pending" | "sending" | "sent";
-  [key: string]: string;
+  status?: "pending" | "sending" | "sent" | "failed";
+  retryCount?: number;
+  [key: string]: string | number | undefined;
 }
 const ContactUploadForm = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -115,8 +116,10 @@ const ContactUploadForm = () => {
         minute: "2-digit"
       });
 
-      // Send messages to webhook one by one
+      // Send messages to webhook one by one with retry logic
       const webhookUrl = "https://nwhminds.cognitaai.com.br/webhook/ativação-carol";
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 2000; // 2 seconds between retries
       
       for (let i = 0; i < contactsWithStatus.length; i++) {
         // Wait if paused
@@ -124,57 +127,87 @@ const ContactUploadForm = () => {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        // Update current contact to "sending"
-        setContacts(prev => 
-          prev.map((c, idx) => 
-            idx === i ? { ...c, status: "sending" as const } : c
-          )
-        );
-        setCurrentContactIndex(i);
+        let retryCount = 0;
+        let success = false;
 
-        try {
-          // Send data to webhook
-          const response = await fetch(webhookUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              contact: {
-                name: contactsWithStatus[i].name,
-                phone: contactsWithStatus[i].phone,
+        while (retryCount <= MAX_RETRIES && !success) {
+          // Update current contact to "sending"
+          setContacts(prev => 
+            prev.map((c, idx) => 
+              idx === i ? { ...c, status: "sending" as const, retryCount } : c
+            )
+          );
+          setCurrentContactIndex(i);
+
+          try {
+            // Send data to webhook
+            const response = await fetch(webhookUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
               },
-              message: message.trim(),
-              timestamp: new Date().toISOString(),
-              contactIndex: i + 1,
-              totalContacts: contactsWithStatus.length,
-            }),
-          });
+              body: JSON.stringify({
+                contact: {
+                  name: contactsWithStatus[i].name,
+                  phone: contactsWithStatus[i].phone,
+                },
+                message: message.trim(),
+                timestamp: new Date().toISOString(),
+                contactIndex: i + 1,
+                totalContacts: contactsWithStatus.length,
+                retryAttempt: retryCount,
+              }),
+            });
 
-          if (!response.ok) {
-            console.error(`Failed to send contact ${i + 1}:`, response.statusText);
-            throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            console.log(`Contact ${i + 1} sent successfully${retryCount > 0 ? ` (após ${retryCount} tentativa${retryCount > 1 ? 's' : ''})` : ''}`);
+            success = true;
+
+            // Update current contact to "sent"
+            setContacts(prev => 
+              prev.map((c, idx) => 
+                idx === i ? { ...c, status: "sent" as const, retryCount } : c
+              )
+            );
+
+          } catch (error) {
+            console.error(`Error sending contact ${i + 1} (tentativa ${retryCount + 1}/${MAX_RETRIES + 1}):`, error);
+            
+            retryCount++;
+
+            if (retryCount > MAX_RETRIES) {
+              // All retries failed
+              console.error(`Contact ${i + 1} failed after ${MAX_RETRIES + 1} attempts`);
+              
+              setContacts(prev => 
+                prev.map((c, idx) => 
+                  idx === i ? { ...c, status: "failed" as const, retryCount } : c
+                )
+              );
+
+              toast({
+                title: "Falha no envio",
+                description: `Não foi possível enviar para ${contactsWithStatus[i].name} após ${MAX_RETRIES + 1} tentativas`,
+                variant: "destructive"
+              });
+            } else {
+              // Wait before retrying
+              toast({
+                title: "Tentando novamente",
+                description: `Reenviando para ${contactsWithStatus[i].name} (tentativa ${retryCount + 1})`,
+              });
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            }
           }
-
-          console.log(`Contact ${i + 1} sent successfully`);
-        } catch (error) {
-          console.error(`Error sending contact ${i + 1}:`, error);
-          toast({
-            title: "Erro no envio",
-            description: `Falha ao enviar contato ${contactsWithStatus[i].name}`,
-            variant: "destructive"
-          });
         }
 
-        // Update current contact to "sent"
-        setContacts(prev => 
-          prev.map((c, idx) => 
-            idx === i ? { ...c, status: "sent" as const } : c
-          )
-        );
-
-        // Small delay between requests to avoid overwhelming the webhook
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Small delay between contacts to avoid overwhelming the webhook
+        if (success) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
 
       setCurrentContactIndex(contactsWithStatus.length);

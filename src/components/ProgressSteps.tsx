@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Loader2, Pause, Play } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, Pause, Play, XCircle } from "lucide-react";
 import { Card, CardGradient, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,7 +8,9 @@ import { CircularProgress } from "@/components/ui/circular-progress";
 interface Contact {
   name: string;
   phone: string;
-  status?: "pending" | "sending" | "sent";
+  status?: "pending" | "sending" | "sent" | "failed";
+  retryCount?: number;
+  [key: string]: string | number | undefined;
 }
 
 interface ProgressStepsProps {
@@ -81,6 +83,8 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
                     ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
                     : contact.status === "sending"
                     ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900"
+                    : contact.status === "failed"
+                    ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
                     : "bg-muted/50 border-border"
                 }`}
               >
@@ -88,11 +92,20 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
                   <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
                 ) : contact.status === "sending" ? (
                   <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
+                ) : contact.status === "failed" ? (
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
                 ) : (
                   <Clock className="h-5 w-5 text-muted-foreground shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{contact.name}</p>
+                  <p className="font-medium text-sm truncate">
+                    {contact.name}
+                    {contact.retryCount && contact.retryCount > 0 && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({contact.retryCount} tentativa{contact.retryCount > 1 ? 's' : ''})
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {contact.phone}
                   </p>
@@ -103,6 +116,8 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
                       ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
                       : contact.status === "sending"
                       ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                      : contact.status === "failed"
+                      ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -110,6 +125,8 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
                     ? "Enviado"
                     : contact.status === "sending"
                     ? "Enviando..."
+                    : contact.status === "failed"
+                    ? "Falhou"
                     : "Aguardando"}
                 </span>
               </div>
