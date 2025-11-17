@@ -208,6 +208,7 @@ const OutboundCallManager = ({
         duration: callData.duration,
         error: callData.error,
         analysis: callData.analysis,
+        recordingUrl: callData.recordingUrl || callData.artifact?.recordingUrl,
       };
 
       // Update in database

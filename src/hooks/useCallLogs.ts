@@ -44,7 +44,7 @@ const extractSatisfaction = (structuredData?: any): string | null => {
 };
 
 export const useCallLogs = () => {
-  const saveCallLog = async (call: Partial<OutboundCall>) => {
+  const saveCallLog = async (call: Partial<OutboundCall> & { recordingUrl?: string }) => {
     try {
       const insertData: any = {
         vapi_call_id: call.id!,
@@ -62,6 +62,7 @@ export const useCallLogs = () => {
         customer_satisfaction: extractSatisfaction(call.analysis?.structuredData),
         error_message: call.error || null,
         retry_count: call.retryCount || 0,
+        recording_url: call.recordingUrl || null,
       };
 
       const { data, error } = await supabase
@@ -78,7 +79,7 @@ export const useCallLogs = () => {
     }
   };
 
-  const updateCallLog = async (vapiCallId: string, updates: Partial<OutboundCall>) => {
+  const updateCallLog = async (vapiCallId: string, updates: Partial<OutboundCall> & { recordingUrl?: string }) => {
     try {
       const updateData: any = {};
       
@@ -87,6 +88,7 @@ export const useCallLogs = () => {
       if (updates.endedAt) updateData.ended_at = updates.endedAt.toISOString();
       if (updates.duration !== undefined) updateData.duration = updates.duration;
       if (updates.error) updateData.error_message = updates.error;
+      if (updates.recordingUrl !== undefined) updateData.recording_url = updates.recordingUrl;
       
       if (updates.analysis) {
         updateData.analysis_summary = updates.analysis.summary || null;

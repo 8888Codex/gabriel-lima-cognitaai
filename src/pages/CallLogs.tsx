@@ -9,14 +9,15 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Skeleton } from "@/components/ui/skeleton";
 import { CallStatsCards } from "@/components/CallStatsCards";
 import { CallLogFilters } from "@/components/CallLogFilters";
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { useCallLogs, CallStats } from "@/hooks/useCallLogs";
-import { Download, FileText, BarChart3, Database } from "lucide-react";
+import { Download, FileText, BarChart3, Database, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
 const CallLogs = () => {
-  const { getCallLogs, getCallStats } = useCallLogs();
+  const { getCallLogs, getCallStats, updateCallLog } = useCallLogs();
   
   const [calls, setCalls] = useState<any[]>([]);
   const [stats, setStats] = useState<CallStats>({
@@ -31,6 +32,7 @@ const CallLogs = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedCall, setSelectedCall] = useState<any | null>(null);
+  const [loadingRecording, setLoadingRecording] = useState(false);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -167,6 +169,86 @@ const CallLogs = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Fetch recording URL from Vapi API
+  const fetchRecordingUrl = async (vapiCallId: string) => {
+    setLoadingRecording(true);
+    try {
+      // Get Vapi credentials from localStorage
+      const savedCredentials = localStorage.getItem('vapi_credentials');
+      if (!savedCredentials) {
+        toast({
+          title: 'Credenciais não encontradas',
+          description: 'Configure as credenciais Vapi para acessar gravações',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { publicKey } = JSON.parse(savedCredentials);
+      if (!publicKey) {
+        toast({
+          title: 'Credenciais inválidas',
+          description: 'Public Key do Vapi não encontrada',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const response = await fetch(`https://api.vapi.ai/call/${vapiCallId}`, {
+        headers: {
+          Authorization: `Bearer ${publicKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao buscar dados da chamada');
+      }
+
+      const callData = await response.json();
+      const recordingUrl = callData.recordingUrl || callData.artifact?.recordingUrl;
+
+      if (recordingUrl) {
+        // Update in database
+        await updateCallLog(vapiCallId, { recordingUrl });
+        
+        // Update local state
+        setSelectedCall((prev: any) => prev ? { ...prev, recording_url: recordingUrl } : null);
+        setCalls((prev) =>
+          prev.map((call) =>
+            call.vapi_call_id === vapiCallId ? { ...call, recording_url: recordingUrl } : call
+          )
+        );
+
+        toast({
+          title: 'Gravação encontrada',
+          description: 'A gravação está disponível para reprodução',
+        });
+      } else {
+        toast({
+          title: 'Gravação não disponível',
+          description: 'Esta chamada não possui gravação disponível no momento',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching recording:', error);
+      toast({
+        title: 'Erro ao buscar gravação',
+        description: 'Não foi possível carregar a gravação da chamada',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingRecording(false);
+    }
+  };
+
+  // Check for recording when modal opens
+  useEffect(() => {
+    if (selectedCall && !selectedCall.recording_url && selectedCall.vapi_call_id) {
+      fetchRecordingUrl(selectedCall.vapi_call_id);
+    }
+  }, [selectedCall?.id]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -346,6 +428,28 @@ const CallLogs = () => {
           
           {selectedCall && (
             <div className="space-y-4">
+              {/* Audio Player */}
+              {selectedCall.recording_url ? (
+                <div>
+                  <p className="text-sm font-medium mb-2">🎧 Gravação da Chamada:</p>
+                  <AudioPlayer 
+                    url={selectedCall.recording_url} 
+                    title={`Chamada com ${selectedCall.customer_name || selectedCall.customer_phone}`}
+                  />
+                </div>
+              ) : loadingRecording ? (
+                <div className="flex items-center justify-center gap-2 p-4 bg-muted rounded">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <p className="text-sm text-muted-foreground">Buscando gravação...</p>
+                </div>
+              ) : (
+                <div className="p-4 bg-muted rounded">
+                  <p className="text-sm text-muted-foreground">
+                    Gravação não disponível para esta chamada
+                  </p>
+                </div>
+              )}
+
               {/* Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>

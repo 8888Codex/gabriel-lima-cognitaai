@@ -380,17 +380,41 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           description: `Duração: ${formatDuration(callDuration)}`,
         });
 
-        // Buscar análise da chamada
+        // Buscar análise e gravação da chamada
         if (callInfo?.id) {
           await fetchCallAnalysis(callInfo.id);
           
-          // Atualizar chamada no banco de dados
-          updateCallLog(callInfo.id, {
-            status: 'ended',
-            endedAt: new Date(),
-            duration: callDuration,
-            analysis: callInfo.analysis,
-          }).catch(err => console.error('[VapiVoiceModal] Error updating call:', err));
+          // Buscar URL da gravação
+          try {
+            const response = await fetch(`https://api.vapi.ai/call/${callInfo.id}`, {
+              headers: {
+                'Authorization': `Bearer ${publicKey}`,
+              }
+            });
+            
+            if (response.ok) {
+              const callData = await response.json();
+              const recordingUrl = callData.recordingUrl || callData.artifact?.recordingUrl;
+              
+              // Atualizar chamada no banco de dados
+              await updateCallLog(callInfo.id, {
+                status: 'ended',
+                endedAt: new Date(),
+                duration: callDuration,
+                analysis: callInfo.analysis,
+                recordingUrl: recordingUrl,
+              });
+            }
+          } catch (error) {
+            console.error('[VapiVoiceModal] Error fetching recording URL:', error);
+            // Still update the call without recording URL
+            await updateCallLog(callInfo.id, {
+              status: 'ended',
+              endedAt: new Date(),
+              duration: callDuration,
+              analysis: callInfo.analysis,
+            });
+          }
         }
       });
 
