@@ -117,9 +117,14 @@ const ContactUploadForm = () => {
       });
 
       // Send messages to webhook one by one with retry logic
-      const webhookUrl = "https://nwhminds.cognitaai.com.br/webhook/ativação-carol";
+      const webhookUrl = "https://nwhminds.cognitaai.com.br/webhook/ativa%C3%A7%C3%A3o-carol";
       const MAX_RETRIES = 3;
       const RETRY_DELAY = 2000; // 2 seconds between retries
+      const REQUEST_TIMEOUT = 10000; // 10 seconds timeout
+      
+      console.log("🚀 Iniciando envio de mensagens para webhook:", webhookUrl);
+      console.log("📊 Total de contatos:", contactsWithStatus.length);
+      console.log("📝 Mensagem:", message.trim());
       
       for (let i = 0; i < contactsWithStatus.length; i++) {
         // Wait if paused
@@ -129,6 +134,8 @@ const ContactUploadForm = () => {
 
         let retryCount = 0;
         let success = false;
+        
+        console.log(`\n📤 [${i + 1}/${contactsWithStatus.length}] Processando contato:`, contactsWithStatus[i]);
 
         while (retryCount <= MAX_RETRIES && !success) {
           // Update current contact to "sending"
@@ -140,30 +147,64 @@ const ContactUploadForm = () => {
           setCurrentContactIndex(i);
 
           try {
+            const payload = {
+              contact: {
+                name: contactsWithStatus[i].name,
+                phone: contactsWithStatus[i].phone,
+              },
+              message: message.trim(),
+              timestamp: new Date().toISOString(),
+              contactIndex: i + 1,
+              totalContacts: contactsWithStatus.length,
+              retryAttempt: retryCount,
+            };
+            
+            console.log(`📨 [Tentativa ${retryCount + 1}/${MAX_RETRIES + 1}] Enviando payload:`, JSON.stringify(payload, null, 2));
+
+            // Create abort controller for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+              console.log(`⏱️ Timeout atingido (${REQUEST_TIMEOUT}ms) para ${contactsWithStatus[i].name}`);
+              controller.abort();
+            }, REQUEST_TIMEOUT);
+
             // Send data to webhook
             const response = await fetch(webhookUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                contact: {
-                  name: contactsWithStatus[i].name,
-                  phone: contactsWithStatus[i].phone,
-                },
-                message: message.trim(),
-                timestamp: new Date().toISOString(),
-                contactIndex: i + 1,
-                totalContacts: contactsWithStatus.length,
-                retryAttempt: retryCount,
-              }),
+              body: JSON.stringify(payload),
+              signal: controller.signal,
             });
 
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
+            clearTimeout(timeoutId);
+
+            console.log(`📥 Resposta recebida - Status: ${response.status} ${response.statusText}`);
+            console.log(`📥 Headers:`, Object.fromEntries(response.headers.entries()));
+
+            // Try to read response body
+            try {
+              const responseText = await response.text();
+              console.log("📄 Resposta do webhook (texto):", responseText);
+              
+              if (responseText) {
+                try {
+                  const responseData = JSON.parse(responseText);
+                  console.log("📄 Resposta do webhook (JSON):", JSON.stringify(responseData, null, 2));
+                } catch (e) {
+                  console.log("⚠️ Resposta não é JSON válido");
+                }
+              }
+            } catch (e) {
+              console.log("⚠️ Não foi possível ler o corpo da resposta:", e);
             }
 
-            console.log(`Contact ${i + 1} sent successfully${retryCount > 0 ? ` (após ${retryCount} tentativa${retryCount > 1 ? 's' : ''})` : ''}`);
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+            }
+
+            console.log(`✅ [${i + 1}/${contactsWithStatus.length}] Sucesso para ${contactsWithStatus[i].name}${retryCount > 0 ? ` (após ${retryCount} tentativa${retryCount > 1 ? 's' : ''})` : ''}`);
             success = true;
 
             // Update current contact to "sent"
@@ -173,14 +214,27 @@ const ContactUploadForm = () => {
               )
             );
 
+            toast({
+              title: "Mensagem enviada",
+              description: `Enviado para ${contactsWithStatus[i].name}`,
+            });
+
           } catch (error) {
-            console.error(`Error sending contact ${i + 1} (tentativa ${retryCount + 1}/${MAX_RETRIES + 1}):`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const isTimeout = error instanceof Error && error.name === 'AbortError';
+            
+            console.error(`❌ [${i + 1}/${contactsWithStatus.length}] Erro (tentativa ${retryCount + 1}/${MAX_RETRIES + 1}):`, {
+              contato: contactsWithStatus[i].name,
+              erro: errorMessage,
+              tipo: isTimeout ? 'Timeout' : 'Erro de requisição',
+              stack: error instanceof Error ? error.stack : undefined
+            });
             
             retryCount++;
 
             if (retryCount > MAX_RETRIES) {
               // All retries failed
-              console.error(`Contact ${i + 1} failed after ${MAX_RETRIES + 1} attempts`);
+              console.error(`💥 [${i + 1}/${contactsWithStatus.length}] Falha definitiva para ${contactsWithStatus[i].name} após ${MAX_RETRIES + 1} tentativas`);
               
               setContacts(prev => 
                 prev.map((c, idx) => 
@@ -190,11 +244,13 @@ const ContactUploadForm = () => {
 
               toast({
                 title: "Falha no envio",
-                description: `Não foi possível enviar para ${contactsWithStatus[i].name} após ${MAX_RETRIES + 1} tentativas`,
+                description: `Não foi possível enviar para ${contactsWithStatus[i].name} após ${MAX_RETRIES + 1} tentativas${isTimeout ? ' (timeout)' : ''}`,
                 variant: "destructive"
               });
             } else {
               // Wait before retrying
+              console.log(`🔄 Aguardando ${RETRY_DELAY}ms antes de tentar novamente...`);
+              
               toast({
                 title: "Tentando novamente",
                 description: `Reenviando para ${contactsWithStatus[i].name} (tentativa ${retryCount + 1})`,
@@ -206,9 +262,12 @@ const ContactUploadForm = () => {
 
         // Small delay between contacts to avoid overwhelming the webhook
         if (success) {
+          console.log(`⏳ Aguardando 500ms antes do próximo contato...`);
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
+      
+      console.log("🎉 Processo de envio finalizado!");
 
       setCurrentContactIndex(contactsWithStatus.length);
       
