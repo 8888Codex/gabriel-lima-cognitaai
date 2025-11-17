@@ -14,7 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      call_logs: {
+        Row: {
+          analysis_structured_data: Json | null
+          analysis_success_evaluation: string | null
+          analysis_summary: string | null
+          assistant_id: string | null
+          call_type: string | null
+          created_at: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string
+          customer_satisfaction: string | null
+          duration: number | null
+          ended_at: string | null
+          error_message: string | null
+          id: string
+          phone_number_id: string | null
+          retry_count: number | null
+          scheduled_at: string | null
+          sentiment: string | null
+          started_at: string | null
+          status: string | null
+          transcript: string | null
+          vapi_call_id: string
+        }
+        Insert: {
+          analysis_structured_data?: Json | null
+          analysis_success_evaluation?: string | null
+          analysis_summary?: string | null
+          assistant_id?: string | null
+          call_type?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone: string
+          customer_satisfaction?: string | null
+          duration?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          phone_number_id?: string | null
+          retry_count?: number | null
+          scheduled_at?: string | null
+          sentiment?: string | null
+          started_at?: string | null
+          status?: string | null
+          transcript?: string | null
+          vapi_call_id: string
+        }
+        Update: {
+          analysis_structured_data?: Json | null
+          analysis_success_evaluation?: string | null
+          analysis_summary?: string | null
+          assistant_id?: string | null
+          call_type?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string
+          customer_satisfaction?: string | null
+          duration?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          phone_number_id?: string | null
+          retry_count?: number | null
+          scheduled_at?: string | null
+          sentiment?: string | null
+          started_at?: string | null
+          status?: string | null
+          transcript?: string | null
+          vapi_call_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

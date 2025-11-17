@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Vapi from '@vapi-ai/web';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useCallLogs } from '@/hooks/useCallLogs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -171,6 +172,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+  const { saveCallLog, updateCallLog } = useCallLogs();
 
   // Carregar credenciais e tema do localStorage
   useEffect(() => {
@@ -381,6 +383,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         // Buscar análise da chamada
         if (callInfo?.id) {
           await fetchCallAnalysis(callInfo.id);
+          
+          // Atualizar chamada no banco de dados
+          updateCallLog(callInfo.id, {
+            status: 'ended',
+            endedAt: new Date(),
+            duration: callDuration,
+            analysis: callInfo.analysis,
+          }).catch(err => console.error('[VapiVoiceModal] Error updating call:', err));
         }
       });
 
@@ -395,11 +405,20 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       vapiInstance.on('message', (message: any) => {
         // Capturar call_id se disponível
         if (message.call?.id) {
-          setCallInfo(prev => prev ? { ...prev, id: message.call.id } : {
-            id: message.call.id,
+          const callId = message.call.id;
+          setCallInfo(prev => prev ? { ...prev, id: callId } : {
+            id: callId,
             startedAt: new Date(),
             duration: 0,
           });
+          
+          // Salvar chamada no banco de dados
+          saveCallLog({
+            id: callId,
+            status: 'in-progress',
+            customer: { number: 'Inbound Call' },
+            startedAt: new Date(),
+          }).catch(err => console.error('[VapiVoiceModal] Error saving call:', err));
         }
         
         if (message.type === 'transcript' && message.transcript) {
