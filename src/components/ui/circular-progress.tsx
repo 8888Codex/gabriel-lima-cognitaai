@@ -6,6 +6,7 @@ interface CircularProgressProps {
   strokeWidth?: number;
   className?: string;
   showPercentage?: boolean;
+  animate?: boolean;
 }
 
 export function CircularProgress({
@@ -14,6 +15,7 @@ export function CircularProgress({
   strokeWidth = 8,
   className,
   showPercentage = true,
+  animate = false,
 }: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -24,7 +26,7 @@ export function CircularProgress({
       <svg
         width={size}
         height={size}
-        className="transform -rotate-90"
+        className={cn("transform -rotate-90", animate && "animate-[spin-slow_3s_linear_infinite]")}
       >
         {/* Background circle */}
         <circle
