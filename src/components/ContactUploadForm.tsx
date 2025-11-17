@@ -145,9 +145,10 @@ const ContactUploadForm = () => {
       const webhookUrl = webhookConfig 
         ? JSON.parse(webhookConfig).url 
         : "https://nwhminds.cognitaai.com.br/webhook/ativacao-carol";
+      
       const MAX_RETRIES = 3;
       const RETRY_DELAY = 2000; // 2 seconds between retries
-      const REQUEST_TIMEOUT = 10000; // 10 seconds timeout
+      const REQUEST_TIMEOUT = 30000; // 30 seconds timeout (increased for edge function)
       
       console.log("🚀 Iniciando envio de mensagens para webhook:", webhookUrl);
       console.log("📊 Total de contatos:", contactsWithStatus.length);
@@ -185,9 +186,10 @@ const ContactUploadForm = () => {
               contactIndex: i + 1,
               totalContacts: contactsWithStatus.length,
               retryAttempt: retryCount,
+              webhookUrl: webhookUrl, // Include webhook URL in payload
             };
             
-            console.log(`📨 [Tentativa ${retryCount + 1}/${MAX_RETRIES + 1}] Enviando payload:`, JSON.stringify(payload, null, 2));
+            console.log(`📨 [Tentativa ${retryCount + 1}/${MAX_RETRIES + 1}] Enviando via Edge Function:`, JSON.stringify(payload, null, 2));
 
             // Create abort controller for timeout
             const controller = new AbortController();
@@ -196,40 +198,56 @@ const ContactUploadForm = () => {
               controller.abort();
             }, REQUEST_TIMEOUT);
 
-            // Send data to webhook
-            const response = await fetch(webhookUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(payload),
-              signal: controller.signal,
-            });
+            // Send data to edge function proxy (without supabase client to avoid CORS)
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-webhook`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+              }
+            );
 
             clearTimeout(timeoutId);
 
-            console.log(`📥 Resposta recebida - Status: ${response.status} ${response.statusText}`);
-            console.log(`📥 Headers:`, Object.fromEntries(response.headers.entries()));
+            console.log(`📥 Resposta da Edge Function - Status: ${response.status} ${response.statusText}`);
 
             // Try to read response body
+            let responseData = null;
             try {
               const responseText = await response.text();
-              console.log("📄 Resposta do webhook (texto):", responseText);
+              console.log("📄 Resposta (texto):", responseText);
               
               if (responseText) {
                 try {
-                  const responseData = JSON.parse(responseText);
-                  console.log("📄 Resposta do webhook (JSON):", JSON.stringify(responseData, null, 2));
-                } catch (e) {
+                  responseData = JSON.parse(responseText);
+                  console.log("📄 Resposta (JSON):", JSON.stringify(responseData, null, 2));
+                  
+                  // Check if the proxy reported an error
+                  if (responseData && !responseData.success) {
+                    throw new Error(responseData.error || `Webhook retornou erro: ${responseData.status}`);
+                  }
+                } catch (e: any) {
+                  if (e.message.includes('Webhook')) {
+                    throw e; // Re-throw webhook errors
+                  }
                   console.log("⚠️ Resposta não é JSON válido");
                 }
               }
-            } catch (e) {
-              console.log("⚠️ Não foi possível ler o corpo da resposta:", e);
+            } catch (e: any) {
+              if (e.message.includes('Webhook') || e.message.includes('Timeout')) {
+                throw e; // Re-throw specific errors
+              }
+              console.log("⚠️ Erro ao processar resposta:", e);
             }
 
             if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+              const errorMsg = responseData?.error || `HTTP error! status: ${response.status} ${response.statusText}`;
+              throw new Error(errorMsg);
             }
 
             console.log(`✅ [${i + 1}/${contactsWithStatus.length}] Sucesso para ${contactsWithStatus[i].name}${retryCount > 0 ? ` (após ${retryCount} tentativa${retryCount > 1 ? 's' : ''})` : ''}`);
