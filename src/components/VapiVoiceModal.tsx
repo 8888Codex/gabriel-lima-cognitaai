@@ -104,6 +104,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [vapi, setVapi] = useState<Vapi | null>(null);
   const [publicKey, setPublicKey] = useState('');
   const [assistantId, setAssistantId] = useState('');
+  const [phoneNumberId, setPhoneNumberId] = useState('');
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -135,10 +136,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     if (savedCredentials) {
       try {
         const parsed = JSON.parse(savedCredentials);
-        const { publicKey: savedPublicKey, assistantId: savedAssistantId, analysisPlan } = parsed;
+        const { publicKey: savedPublicKey, assistantId: savedAssistantId, phoneNumberId: savedPhoneNumberId, analysisPlan } = parsed;
         if (savedPublicKey && savedAssistantId) {
           setPublicKey(savedPublicKey);
           setAssistantId(savedAssistantId);
+          setPhoneNumberId(savedPhoneNumberId || '');
           setHasStoredCredentials(true);
           setIsEditingCredentials(false);
           
@@ -397,6 +399,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       localStorage.setItem(VAPI_STORAGE_KEY, JSON.stringify({
         publicKey,
         assistantId,
+        phoneNumberId,
         analysisPlan: Object.keys(analysisPlan).length > 0 ? analysisPlan : undefined
       }));
     } catch (error) {
@@ -449,6 +452,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     localStorage.removeItem(VAPI_STORAGE_KEY);
     setPublicKey('');
     setAssistantId('');
+    setPhoneNumberId('');
     setHasStoredCredentials(false);
     setIsEditingCredentials(true);
     
@@ -703,6 +707,22 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       </div>
                     </div>
 
+                    {phoneNumberId && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Phone Number ID (Outbound)
+                        </label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            value={maskCredential(phoneNumberId)}
+                            readOnly
+                            className="flex-1 bg-muted"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2">
                       <Button
                         onClick={startCall}
@@ -778,6 +798,22 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         onChange={(e) => setAssistantId(e.target.value)}
                         className="w-full"
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Phone Number ID (Opcional - para chamadas outbound)
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="Digite o Phone Number ID"
+                        value={phoneNumberId}
+                        onChange={(e) => setPhoneNumberId(e.target.value)}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Necessário apenas para fazer chamadas de saída (outbound calling)
+                      </p>
                     </div>
 
                     {/* Configurações Avançadas - Analysis Plan */}
@@ -914,6 +950,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                               const parsed = JSON.parse(savedCredentials);
                               setPublicKey(parsed.publicKey);
                               setAssistantId(parsed.assistantId);
+                              setPhoneNumberId(parsed.phoneNumberId || '');
                               
                               // Recarregar analysisPlan
                               if (parsed.analysisPlan) {
