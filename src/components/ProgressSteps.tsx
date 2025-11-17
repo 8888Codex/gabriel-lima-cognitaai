@@ -65,6 +65,7 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
               value={progress} 
               size={100} 
               strokeWidth={6}
+              animate={!isPaused}
             />
           </div>
         </div>
