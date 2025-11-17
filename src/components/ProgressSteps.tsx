@@ -1,86 +1,81 @@
-import { CheckCircle2, Loader2, FileCheck, Users, Phone } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface Step {
-  id: number;
-  label: string;
-  icon: React.ElementType;
+interface Contact {
+  name: string;
+  phone: string;
+  status?: "pending" | "sending" | "sent";
 }
-
-const steps: Step[] = [
-  { id: 1, label: "Validando arquivo", icon: FileCheck },
-  { id: 2, label: "Processando contatos", icon: Users },
-  { id: 3, label: "Iniciando ligações", icon: Phone },
-];
 
 interface ProgressStepsProps {
-  currentStep: number;
+  contacts: Contact[];
+  currentIndex: number;
 }
 
-const ProgressSteps = ({ currentStep }: ProgressStepsProps) => {
+const ProgressSteps = ({ contacts, currentIndex }: ProgressStepsProps) => {
+  const progress = (currentIndex / contacts.length) * 100;
+
   return (
-    <div className="w-full py-8">
-      <div className="relative">
-        {/* Progress Line */}
-        <div className="absolute top-6 left-0 right-0 h-0.5 bg-muted">
-          <div
-            className="h-full bg-primary transition-all duration-700 ease-out"
-            style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
-          />
-        </div>
-
-        {/* Steps */}
-        <div className="relative flex justify-between">
-          {steps.map((step) => {
-            const Icon = step.icon;
-            const isActive = currentStep === step.id;
-            const isCompleted = currentStep > step.id;
-            const isPending = currentStep < step.id;
-
-            return (
-              <div key={step.id} className="flex flex-col items-center">
-                {/* Icon Circle */}
-                <div
-                  className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 relative z-10",
-                    isCompleted && "bg-primary scale-110 shadow-lg",
-                    isActive && "bg-primary animate-pulse scale-110 shadow-lg shadow-primary/50",
-                    isPending && "bg-muted scale-90"
-                  )}
-                >
-                  {isCompleted ? (
-                    <CheckCircle2 className="w-6 h-6 text-primary-foreground animate-scale-in" />
-                  ) : isActive ? (
-                    <Loader2 className="w-6 h-6 text-primary-foreground animate-spin" />
-                  ) : (
-                    <Icon
-                      className={cn(
-                        "w-6 h-6 transition-colors",
-                        isPending ? "text-muted-foreground" : "text-primary-foreground"
-                      )}
-                    />
-                  )}
-                </div>
-
-                {/* Label */}
-                <div className="mt-3 text-center">
-                  <p
-                    className={cn(
-                      "text-sm font-medium transition-all duration-300",
-                      isActive && "text-foreground scale-105 font-semibold",
-                      isCompleted && "text-foreground",
-                      isPending && "text-muted-foreground"
-                    )}
-                  >
-                    {step.label}
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Enviando Mensagens</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            {currentIndex} de {contacts.length}
+          </span>
+        </CardTitle>
+        <Progress value={progress} className="mt-2" />
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[400px] pr-4">
+          <div className="space-y-3">
+            {contacts.map((contact, index) => (
+              <div
+                key={index}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                  contact.status === "sent"
+                    ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                    : contact.status === "sending"
+                    ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900"
+                    : "bg-muted/50 border-border"
+                }`}
+              >
+                {contact.status === "sent" ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                ) : contact.status === "sending" ? (
+                  <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
+                ) : (
+                  <Clock className="h-5 w-5 text-muted-foreground shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{contact.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {contact.phone}
                   </p>
                 </div>
+                <span
+                  className={`text-xs font-medium px-2 py-1 rounded ${
+                    contact.status === "sent"
+                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                      : contact.status === "sending"
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {contact.status === "sent"
+                    ? "Enviado"
+                    : contact.status === "sending"
+                    ? "Enviando..."
+                    : "Aguardando"}
+                </span>
               </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 };
 
