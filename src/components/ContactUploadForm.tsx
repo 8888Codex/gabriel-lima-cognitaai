@@ -23,6 +23,7 @@ const ContactUploadForm = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [sendingProgress, setSendingProgress] = useState(false);
   const [currentContactIndex, setCurrentContactIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const [campaignData, setCampaignData] = useState({
     contactCount: 0,
     startTime: ""
@@ -116,6 +117,11 @@ const ContactUploadForm = () => {
 
       // Simulate sending messages one by one
       for (let i = 0; i < contactsWithStatus.length; i++) {
+        // Wait if paused
+        while (isPaused) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
         // Update current contact to "sending"
         setContacts(prev => 
           prev.map((c, idx) => 
@@ -169,6 +175,7 @@ const ContactUploadForm = () => {
     setShowPreview(false);
     setSendingProgress(false);
     setCurrentContactIndex(0);
+    setIsPaused(false);
     const fileInput = document.getElementById("file-upload") as HTMLInputElement;
     if (fileInput) fileInput.value = "";
   };
@@ -194,7 +201,12 @@ const ContactUploadForm = () => {
       }}>
           <CardContent className="p-8">
             {sendingProgress ? <div className="py-4">
-                <ProgressSteps contacts={contacts} currentIndex={currentContactIndex} />
+                <ProgressSteps 
+                  contacts={contacts} 
+                  currentIndex={currentContactIndex} 
+                  isPaused={isPaused}
+                  onTogglePause={() => setIsPaused(!isPaused)}
+                />
               </div> : showPreview ? <CSVPreview contacts={contacts.slice(0, 5)} totalCount={contacts.length} onConfirm={handlePreviewConfirm} onCancel={handlePreviewCancel} isValid={isValidCSV} errorMessage={csvError} /> : <form onSubmit={handleSubmit} className="space-y-7">
                 {/* File Upload */}
                 <div className="space-y-3">
