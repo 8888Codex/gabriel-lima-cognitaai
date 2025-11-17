@@ -7,8 +7,12 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
 ));
 Card.displayName = "Card";
 
-const CardGradient = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("relative rounded-lg bg-card text-card-foreground shadow-lg overflow-hidden group", className)}>
+interface CardGradientProps extends React.HTMLAttributes<HTMLDivElement> {
+  animate?: boolean;
+}
+
+const CardGradient = React.forwardRef<HTMLDivElement, CardGradientProps>(({ className, animate = false, ...props }, ref) => (
+  <div ref={ref} className={cn("relative rounded-lg bg-card text-card-foreground shadow-lg overflow-hidden group", animate && "animate-glow-pulse", className)}>
     <div className="absolute inset-0 rounded-lg p-[2px] bg-gradient-codex transition-opacity group-hover:opacity-80">
       <div className="h-full w-full rounded-lg bg-card" />
     </div>

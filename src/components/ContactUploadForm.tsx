@@ -196,9 +196,13 @@ const ContactUploadForm = () => {
           <p className="text-base text-muted-foreground font-medium">{contactCount}</p>
         </div>
 
-        <CardGradient className="shadow-2xl backdrop-blur-sm animate-slide-up" style={{
-        animationDelay: "0.1s"
-      }}>
+        <CardGradient 
+          className="shadow-2xl backdrop-blur-sm animate-slide-up" 
+          animate={sendingProgress}
+          style={{
+            animationDelay: "0.1s"
+          }}
+        >
           <CardContent className="p-8">
             {sendingProgress ? <div className="py-4">
                 <ProgressSteps 

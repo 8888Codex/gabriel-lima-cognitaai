@@ -21,7 +21,7 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
   const progress = (currentIndex / contacts.length) * 100;
 
   return (
-    <CardGradient>
+    <CardGradient animate={!isPaused}>
       <CardHeader>
         <div className="flex items-center justify-between mb-2">
           <CardTitle className="flex items-center gap-3">
