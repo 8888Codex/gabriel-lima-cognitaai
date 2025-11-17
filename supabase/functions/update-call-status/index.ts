@@ -34,9 +34,56 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Validate Content-Type
+    const contentType = req.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('❌ Content-Type inválido:', contentType);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Content-Type deve ser application/json' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Check if body is present
+    const text = await req.text();
+    if (!text || text.trim() === '') {
+      console.error('❌ Body vazio recebido');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Body da requisição está vazio' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     // Parse request body
-    const payload: UpdateCallPayload = await req.json();
-    console.log('📋 Payload recebido:', JSON.stringify(payload, null, 2));
+    let payload: UpdateCallPayload;
+    try {
+      payload = JSON.parse(text);
+      console.log('📋 Payload recebido:', JSON.stringify(payload, null, 2));
+    } catch (e) {
+      console.error('❌ Erro ao parsear JSON:', e);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'JSON inválido no body da requisição' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
     // Validate required field
     if (!payload.vapi_call_id) {
