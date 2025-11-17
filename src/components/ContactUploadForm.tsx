@@ -12,6 +12,7 @@ import { parseCSV } from "@/utils/csvParser";
 interface Contact {
   name: string;
   phone: string;
+  email?: string;
   status?: "pending" | "sending" | "sent" | "failed";
   retryCount?: number;
   [key: string]: string | number | undefined;
@@ -151,6 +152,7 @@ const ContactUploadForm = () => {
               contact: {
                 name: contactsWithStatus[i].name,
                 phone: contactsWithStatus[i].phone,
+                email: contactsWithStatus[i].email || '',
               },
               message: message.trim(),
               timestamp: new Date().toISOString(),

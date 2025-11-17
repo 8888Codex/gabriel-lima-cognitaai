@@ -1,7 +1,8 @@
 interface Contact {
   name: string;
   phone: string;
-  [key: string]: string;
+  email?: string;
+  [key: string]: string | undefined;
 }
 
 interface ParseResult {
@@ -34,6 +35,7 @@ export const parseCSV = async (file: File): Promise<ParseResult> => {
         // Validate required columns
         const hasName = headers.includes('name') || headers.includes('nome');
         const hasPhone = headers.includes('phone') || headers.includes('telefone');
+        const hasEmail = headers.includes('email') || headers.includes('e-mail');
 
         if (!hasName || !hasPhone) {
           resolve({
@@ -47,6 +49,7 @@ export const parseCSV = async (file: File): Promise<ParseResult> => {
         // Get column indices
         const nameIndex = headers.findIndex(h => h === 'name' || h === 'nome');
         const phoneIndex = headers.findIndex(h => h === 'phone' || h === 'telefone');
+        const emailIndex = headers.findIndex(h => h === 'email' || h === 'e-mail');
 
         // Parse contacts
         const contacts: Contact[] = [];
@@ -56,9 +59,14 @@ export const parseCSV = async (file: File): Promise<ParseResult> => {
           if (values.length > nameIndex && values.length > phoneIndex) {
             const name = values[nameIndex];
             const phone = values[phoneIndex];
+            const email = emailIndex !== -1 && values.length > emailIndex ? values[emailIndex] : '';
 
             if (name && phone) {
-              contacts.push({ name, phone });
+              const contact: Contact = { name, phone };
+              if (email) {
+                contact.email = email;
+              }
+              contacts.push(contact);
             }
           }
         }
