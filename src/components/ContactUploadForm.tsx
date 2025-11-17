@@ -12,6 +12,7 @@ import { parseCSV } from "@/utils/csvParser";
 interface Contact {
   name: string;
   phone: string;
+  status?: "pending" | "sending" | "sent";
   [key: string]: string;
 }
 const ContactUploadForm = () => {
@@ -20,6 +21,8 @@ const ContactUploadForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [sendingProgress, setSendingProgress] = useState(false);
+  const [currentContactIndex, setCurrentContactIndex] = useState(0);
   const [campaignData, setCampaignData] = useState({
     contactCount: 0,
     startTime: ""
@@ -99,31 +102,49 @@ const ContactUploadForm = () => {
       return;
     }
     setIsSubmitting(true);
-    setCurrentStep(1);
+    setSendingProgress(true);
+    
     try {
-      // Step 1: Validating file
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setCurrentStep(2);
+      // Initialize all contacts with pending status
+      const contactsWithStatus = contacts.map(c => ({ ...c, status: "pending" as const }));
+      setContacts(contactsWithStatus);
 
-      // Step 2: Processing contacts
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setCurrentStep(3);
-
-      // Step 3: Starting calls
-      // Here you would integrate with your n8n webhook
-      // Example: await fetch('your-n8n-webhook-url', { method: 'POST', body: formData })
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Prepare campaign data
-      const contactCount = contacts.length;
       const startTime = new Date().toLocaleTimeString("pt-BR", {
         hour: "2-digit",
         minute: "2-digit"
       });
+
+      // Simulate sending messages one by one
+      for (let i = 0; i < contactsWithStatus.length; i++) {
+        // Update current contact to "sending"
+        setContacts(prev => 
+          prev.map((c, idx) => 
+            idx === i ? { ...c, status: "sending" as const } : c
+          )
+        );
+        setCurrentContactIndex(i);
+
+        // Simulate API call delay (1-2 seconds per message)
+        await new Promise(resolve => 
+          setTimeout(resolve, 1000 + Math.random() * 1000)
+        );
+
+        // Update current contact to "sent"
+        setContacts(prev => 
+          prev.map((c, idx) => 
+            idx === i ? { ...c, status: "sent" as const } : c
+          )
+        );
+      }
+
+      setCurrentContactIndex(contactsWithStatus.length);
+      
       setCampaignData({
-        contactCount,
+        contactCount: contactsWithStatus.length,
         startTime
       });
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
       setShowSuccess(true);
     } catch (error) {
       toast({
@@ -134,6 +155,7 @@ const ContactUploadForm = () => {
       setCurrentStep(0);
     } finally {
       setIsSubmitting(false);
+      setSendingProgress(false);
     }
   };
   const handleNewCampaign = () => {
@@ -145,6 +167,8 @@ const ContactUploadForm = () => {
     setIsValidCSV(false);
     setCsvError("");
     setShowPreview(false);
+    setSendingProgress(false);
+    setCurrentContactIndex(0);
     const fileInput = document.getElementById("file-upload") as HTMLInputElement;
     if (fileInput) fileInput.value = "";
   };
@@ -169,8 +193,8 @@ const ContactUploadForm = () => {
         animationDelay: "0.1s"
       }}>
           <CardContent className="p-8">
-            {isSubmitting ? <div className="py-4">
-                <ProgressSteps currentStep={currentStep} />
+            {sendingProgress ? <div className="py-4">
+                <ProgressSteps contacts={contacts} currentIndex={currentContactIndex} />
               </div> : showPreview ? <CSVPreview contacts={contacts.slice(0, 5)} totalCount={contacts.length} onConfirm={handlePreviewConfirm} onCancel={handlePreviewCancel} isValid={isValidCSV} errorMessage={csvError} /> : <form onSubmit={handleSubmit} className="space-y-7">
                 {/* File Upload */}
                 <div className="space-y-3">
