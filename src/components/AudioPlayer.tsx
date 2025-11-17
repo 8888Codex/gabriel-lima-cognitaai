@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
+import WaveSurfer from "wavesurfer.js";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Volume2, VolumeX, Download, Loader2 } from "lucide-react";
 
 interface AudioPlayerProps {
@@ -16,68 +18,83 @@ export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlaye
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [error, setError] = useState<string | null>(null);
   
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    if (!waveformRef.current) return;
 
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+    // Inicializar WaveSurfer
+    const wavesurfer = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: 'hsl(var(--muted-foreground) / 0.3)',
+      progressColor: 'hsl(var(--primary))',
+      cursorColor: 'hsl(var(--primary))',
+      barWidth: 2,
+      barRadius: 3,
+      cursorWidth: 2,
+      height: 80,
+      barGap: 2,
+      normalize: true,
+    });
+
+    wavesurferRef.current = wavesurfer;
+
+    // Carregar áudio
+    wavesurfer.load(url);
+
+    // Eventos
+    wavesurfer.on('ready', () => {
+      setDuration(wavesurfer.getDuration());
       setIsLoading(false);
-    };
+    });
 
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
+    wavesurfer.on('audioprocess', () => {
+      setCurrentTime(wavesurfer.getCurrentTime());
+    });
 
-    const handleEnded = () => {
+    wavesurfer.on('finish', () => {
       setIsPlaying(false);
       setCurrentTime(0);
-    };
+    });
 
-    const handleError = () => {
-      setError("Erro ao carregar o áudio");
+    wavesurfer.on('error', (err) => {
+      console.error('Erro no WaveSurfer:', err);
+      setError('Erro ao carregar o áudio');
       setIsLoading(false);
-    };
+    });
 
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
+    // Click no waveform para seek
+    wavesurfer.on('interaction', () => {
+      setCurrentTime(wavesurfer.getCurrentTime());
+    });
 
     return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
+      wavesurfer.destroy();
     };
-  }, []);
+  }, [url]);
 
+  // Sincronizar playback rate
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+    if (wavesurferRef.current) {
+      wavesurferRef.current.setPlaybackRate(playbackRate);
+    }
+  }, [playbackRate]);
+
+  // Sincronizar volume
+  useEffect(() => {
+    if (wavesurferRef.current) {
+      wavesurferRef.current.setVolume(isMuted ? 0 : volume);
     }
   }, [volume, isMuted]);
 
   const togglePlayPause = () => {
-    if (!audioRef.current) return;
-
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
+    if (!wavesurferRef.current) return;
+    wavesurferRef.current.playPause();
     setIsPlaying(!isPlaying);
-  };
-
-  const handleSeek = (value: number[]) => {
-    if (!audioRef.current) return;
-    const newTime = value[0];
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
   };
 
   const handleVolumeChange = (value: number[]) => {
@@ -107,86 +124,129 @@ export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlaye
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const playbackRates = [
+    { value: 0.5, label: '0.5x' },
+    { value: 0.75, label: '0.75x' },
+    { value: 1, label: '1x (Normal)' },
+    { value: 1.25, label: '1.25x' },
+    { value: 1.5, label: '1.5x' },
+    { value: 1.75, label: '1.75x' },
+    { value: 2, label: '2x' },
+  ];
+
   if (error) {
     return (
       <Card className="p-4">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
       </Card>
     );
   }
 
   return (
-    <Card className="p-4 space-y-3">
-      <audio ref={audioRef} src={url} preload="metadata" />
-      
-      {/* Title */}
+    <Card className="p-4 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium truncate">{title}</p>
+        <p className="text-sm font-medium truncate flex-1">{title}</p>
         <Button
           variant="ghost"
           size="icon"
           onClick={handleDownload}
           title="Baixar gravação"
+          className="shrink-0"
         >
           <Download className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Play/Pause Button and Progress */}
+      {/* Waveform */}
+      <div className="relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        )}
+        <div 
+          ref={waveformRef} 
+          className="w-full rounded-lg overflow-hidden bg-muted/50 border border-border"
+          style={{ minHeight: '80px' }}
+        />
+      </div>
+
+      {/* Time Display */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{formatTime(currentTime)}</span>
+        <span>{formatTime(duration)}</span>
+      </div>
+
+      {/* Controls */}
       <div className="flex items-center gap-3">
+        {/* Play/Pause */}
         <Button
-          variant="outline"
+          variant="default"
           size="icon"
           onClick={togglePlayPause}
           disabled={isLoading}
+          className="shrink-0"
         >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : isPlaying ? (
+          {isPlaying ? (
             <Pause className="h-4 w-4" />
           ) : (
-            <Play className="h-4 w-4" />
+            <Play className="h-4 w-4 ml-0.5" />
           )}
         </Button>
 
-        <div className="flex-1 space-y-1">
+        {/* Playback Speed */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Velocidade:</span>
+          <Select 
+            value={playbackRate.toString()} 
+            onValueChange={(val) => setPlaybackRate(parseFloat(val))}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="w-[120px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {playbackRates.map(rate => (
+                <SelectItem key={rate.value} value={rate.value.toString()}>
+                  {rate.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Volume Control */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleMute}
+            className="shrink-0 h-8 w-8"
+          >
+            {isMuted || volume === 0 ? (
+              <VolumeX className="h-4 w-4" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
+          </Button>
           <Slider
-            value={[currentTime]}
-            max={duration || 100}
-            step={0.1}
-            onValueChange={handleSeek}
-            className="cursor-pointer"
+            value={[isMuted ? 0 : volume]}
+            onValueChange={handleVolumeChange}
+            max={1}
+            step={0.01}
+            className="flex-1"
             disabled={isLoading}
           />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
-          </div>
         </div>
       </div>
 
-      {/* Volume Control */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleMute}
-          className="h-8 w-8"
-        >
-          {isMuted || volume === 0 ? (
-            <VolumeX className="h-4 w-4" />
-          ) : (
-            <Volume2 className="h-4 w-4" />
-          )}
-        </Button>
-        <Slider
-          value={[isMuted ? 0 : volume]}
-          max={1}
-          step={0.01}
-          onValueChange={handleVolumeChange}
-          className="w-24 cursor-pointer"
-        />
-      </div>
+      {/* Speed indicator visual feedback */}
+      {playbackRate !== 1 && (
+        <div className="text-xs text-center text-muted-foreground bg-muted/50 py-1.5 rounded-md">
+          Reproduzindo em {playbackRate}x
+        </div>
+      )}
     </Card>
   );
 };
