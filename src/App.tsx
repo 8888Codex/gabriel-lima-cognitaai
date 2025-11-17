@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import Index from "./pages/Index";
 import CallLogs from "./pages/CallLogs";
 import Campaigns from "./pages/Campaigns";
+import SharedRecording from "./pages/SharedRecording";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/call-logs" element={<CallLogs />} />
             <Route path="/campaigns" element={<Campaigns />} />
+            <Route path="/share/:token" element={<SharedRecording />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
