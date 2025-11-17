@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ContactUploadForm from "@/components/ContactUploadForm";
 import { Header } from "@/components/Header";
 import VapiVoiceModal from "@/components/VapiVoiceModal";
@@ -7,6 +7,15 @@ import { Phone } from "lucide-react";
 
 const Index = () => {
   const [isVapiModalOpen, setIsVapiModalOpen] = useState(false);
+
+  // Auto-open modal on first load to configure webhook
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVapiModalOpen(true);
+    }, 500); // Small delay for smooth UX
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
