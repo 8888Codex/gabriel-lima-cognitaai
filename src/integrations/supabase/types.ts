@@ -14,6 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      audio_bookmarks: {
+        Row: {
+          call_log_id: string
+          category: string | null
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_auto_generated: boolean | null
+          label: string
+          metadata: Json | null
+          timestamp: number
+        }
+        Insert: {
+          call_log_id: string
+          category?: string | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_auto_generated?: boolean | null
+          label: string
+          metadata?: Json | null
+          timestamp: number
+        }
+        Update: {
+          call_log_id?: string
+          category?: string | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_auto_generated?: boolean | null
+          label?: string
+          metadata?: Json | null
+          timestamp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audio_bookmarks_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_campaigns: {
+        Row: {
+          batch_size: number | null
+          completed_at: string | null
+          completed_calls: number | null
+          created_at: string | null
+          description: string | null
+          end_time: string | null
+          id: string
+          interval_minutes: number | null
+          name: string
+          start_time: string | null
+          started_at: string | null
+          status: string | null
+          total_contacts: number | null
+        }
+        Insert: {
+          batch_size?: number | null
+          completed_at?: string | null
+          completed_calls?: number | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          interval_minutes?: number | null
+          name: string
+          start_time?: string | null
+          started_at?: string | null
+          status?: string | null
+          total_contacts?: number | null
+        }
+        Update: {
+          batch_size?: number | null
+          completed_at?: string | null
+          completed_calls?: number | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          interval_minutes?: number | null
+          name?: string
+          start_time?: string | null
+          started_at?: string | null
+          status?: string | null
+          total_contacts?: number | null
+        }
+        Relationships: []
+      }
       call_logs: {
         Row: {
           analysis_structured_data: Json | null
@@ -91,6 +189,199 @@ export type Database = {
           vapi_call_id?: string
         }
         Relationships: []
+      }
+      call_queue: {
+        Row: {
+          assistant_id: string
+          call_log_id: string | null
+          campaign_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string
+          dispatched_at: string | null
+          error_message: string | null
+          id: string
+          max_retries: number | null
+          phone_number_id: string
+          priority: number | null
+          retry_count: number | null
+          scheduled_for: string | null
+          status: string | null
+        }
+        Insert: {
+          assistant_id: string
+          call_log_id?: string | null
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          id?: string
+          max_retries?: number | null
+          phone_number_id: string
+          priority?: number | null
+          retry_count?: number | null
+          scheduled_for?: string | null
+          status?: string | null
+        }
+        Update: {
+          assistant_id?: string
+          call_log_id?: string | null
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string
+          dispatched_at?: string | null
+          error_message?: string | null
+          id?: string
+          max_retries?: number | null
+          phone_number_id?: string
+          priority?: number | null
+          retry_count?: number | null
+          scheduled_for?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_queue_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "call_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_transcripts: {
+        Row: {
+          call_log_id: string
+          created_at: string | null
+          duration: number | null
+          error_message: string | null
+          full_text: string | null
+          id: string
+          keywords: Json | null
+          language: string | null
+          segments: Json | null
+          sentiment_by_segment: Json | null
+          status: string | null
+          word_count: number | null
+        }
+        Insert: {
+          call_log_id: string
+          created_at?: string | null
+          duration?: number | null
+          error_message?: string | null
+          full_text?: string | null
+          id?: string
+          keywords?: Json | null
+          language?: string | null
+          segments?: Json | null
+          sentiment_by_segment?: Json | null
+          status?: string | null
+          word_count?: number | null
+        }
+        Update: {
+          call_log_id?: string
+          created_at?: string | null
+          duration?: number | null
+          error_message?: string | null
+          full_text?: string | null
+          id?: string
+          keywords?: Json | null
+          language?: string | null
+          segments?: Json | null
+          sentiment_by_segment?: Json | null
+          status?: string | null
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_transcripts_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shared_recordings: {
+        Row: {
+          access_log: Json | null
+          allow_download: boolean | null
+          allowed_emails: string[] | null
+          call_log_id: string
+          created_at: string | null
+          created_by: string | null
+          expires_at: string
+          id: string
+          is_active: boolean | null
+          last_accessed_at: string | null
+          max_views: number | null
+          password_hash: string | null
+          require_password: boolean | null
+          revoked_at: string | null
+          share_token: string
+          view_count: number | null
+        }
+        Insert: {
+          access_log?: Json | null
+          allow_download?: boolean | null
+          allowed_emails?: string[] | null
+          call_log_id: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          is_active?: boolean | null
+          last_accessed_at?: string | null
+          max_views?: number | null
+          password_hash?: string | null
+          require_password?: boolean | null
+          revoked_at?: string | null
+          share_token: string
+          view_count?: number | null
+        }
+        Update: {
+          access_log?: Json | null
+          allow_download?: boolean | null
+          allowed_emails?: string[] | null
+          call_log_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_accessed_at?: string | null
+          max_views?: number | null
+          password_hash?: string | null
+          require_password?: boolean | null
+          revoked_at?: string | null
+          share_token?: string
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_recordings_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "call_logs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
