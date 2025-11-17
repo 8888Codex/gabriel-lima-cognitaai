@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.webhook-test]
 verify_jwt = false
+
+[functions.update-call-status]
+verify_jwt = false
