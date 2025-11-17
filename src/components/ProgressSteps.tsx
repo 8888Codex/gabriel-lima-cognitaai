@@ -1,5 +1,5 @@
 import { CheckCircle2, Clock, Loader2, Pause, Play } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardGradient, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
   const progress = (currentIndex / contacts.length) * 100;
 
   return (
-    <Card>
+    <CardGradient>
       <CardHeader>
         <div className="flex items-center justify-between mb-2">
           <CardTitle className="flex items-center gap-3">
@@ -103,7 +103,7 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
           </div>
         </ScrollArea>
       </CardContent>
-    </Card>
+    </CardGradient>
   );
 };
 

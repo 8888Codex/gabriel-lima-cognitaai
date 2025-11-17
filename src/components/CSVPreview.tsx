@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardGradient, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ const CSVPreview = ({ contacts, totalCount, onConfirm, onCancel, isValid, errorM
       </div>
 
       {isValid && contacts.length > 0 && (
-        <Card className="border-border/50">
+        <CardGradient>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-muted-foreground" />
@@ -75,7 +75,7 @@ const CSVPreview = ({ contacts, totalCount, onConfirm, onCancel, isValid, errorM
               </p>
             )}
           </CardContent>
-        </Card>
+        </CardGradient>
       )}
 
       <div className="flex gap-3">
@@ -89,7 +89,8 @@ const CSVPreview = ({ contacts, totalCount, onConfirm, onCancel, isValid, errorM
         <Button
           onClick={onConfirm}
           disabled={!isValid}
-          className="flex-1 py-6 rounded-xl font-semibold bg-primary hover:bg-primary/90 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50"
+          variant="gradient"
+          className="flex-1 py-6 rounded-xl font-semibold disabled:opacity-50"
         >
           Confirmar e enviar
         </Button>

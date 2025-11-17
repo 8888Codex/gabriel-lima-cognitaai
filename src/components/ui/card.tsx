@@ -7,6 +7,16 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
 ));
 Card.displayName = "Card";
 
+const CardGradient = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("relative rounded-lg bg-card text-card-foreground shadow-lg overflow-hidden group", className)}>
+    <div className="absolute inset-0 rounded-lg p-[2px] bg-gradient-codex transition-opacity group-hover:opacity-80">
+      <div className="h-full w-full rounded-lg bg-card" />
+    </div>
+    <div className="relative z-10" {...props} />
+  </div>
+));
+CardGradient.displayName = "CardGradient";
+
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
@@ -40,4 +50,4 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardFooter.displayName = "CardFooter";
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
+export { Card, CardGradient, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
