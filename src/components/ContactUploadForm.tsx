@@ -115,7 +115,9 @@ const ContactUploadForm = () => {
         minute: "2-digit"
       });
 
-      // Simulate sending messages one by one
+      // Send messages to webhook one by one
+      const webhookUrl = "https://nwhminds.cognitaai.com.br/webhook/ativação-carol";
+      
       for (let i = 0; i < contactsWithStatus.length; i++) {
         // Wait if paused
         while (isPaused) {
@@ -130,10 +132,39 @@ const ContactUploadForm = () => {
         );
         setCurrentContactIndex(i);
 
-        // Simulate API call delay (1-2 seconds per message)
-        await new Promise(resolve => 
-          setTimeout(resolve, 1000 + Math.random() * 1000)
-        );
+        try {
+          // Send data to webhook
+          const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contact: {
+                name: contactsWithStatus[i].name,
+                phone: contactsWithStatus[i].phone,
+              },
+              message: message.trim(),
+              timestamp: new Date().toISOString(),
+              contactIndex: i + 1,
+              totalContacts: contactsWithStatus.length,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error(`Failed to send contact ${i + 1}:`, response.statusText);
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          console.log(`Contact ${i + 1} sent successfully`);
+        } catch (error) {
+          console.error(`Error sending contact ${i + 1}:`, error);
+          toast({
+            title: "Erro no envio",
+            description: `Falha ao enviar contato ${contactsWithStatus[i].name}`,
+            variant: "destructive"
+          });
+        }
 
         // Update current contact to "sent"
         setContacts(prev => 
@@ -141,6 +172,9 @@ const ContactUploadForm = () => {
             idx === i ? { ...c, status: "sent" as const } : c
           )
         );
+
+        // Small delay between requests to avoid overwhelming the webhook
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       setCurrentContactIndex(contactsWithStatus.length);
