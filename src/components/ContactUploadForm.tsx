@@ -233,10 +233,7 @@ const ContactUploadForm = () => {
         <div className="mt-6 text-center animate-slide-up" style={{
         animationDelay: "0.2s"
       }}>
-          <p className="text-sm text-muted-foreground flex items-center justify-center gap-1.5">
-            Form automated with{" "}
-            
-          </p>
+          
         </div>
       </div>
     </div>;
