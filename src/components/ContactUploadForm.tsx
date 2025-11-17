@@ -149,16 +149,25 @@ const ContactUploadForm = () => {
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const responseText = await response.text();
-        let responseData = null;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (e) {
-          // Not JSON
-        }
+      const responseText = await response.text();
+      let responseData = null;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("❌ Resposta não é JSON:", responseText);
+      }
 
-        console.error("❌ Teste do webhook falhou:", response.status, responseData);
+      console.log("📥 Resposta do teste:", response.status, responseData);
+
+      // Check if response is not ok OR if the body contains a 404 from webhook
+      if (!response.ok) {
+        console.error("❌ Teste falhou - Response not OK:", response.status);
+        return false;
+      }
+
+      // Even if proxy returns 200, check if webhook itself returned error
+      if (responseData && !responseData.success) {
+        console.error("❌ Teste falhou - Webhook retornou erro:", responseData.status, responseData.body);
         return false;
       }
 
