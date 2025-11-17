@@ -10,11 +10,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CallStatsCards } from "@/components/CallStatsCards";
 import { CallLogFilters } from "@/components/CallLogFilters";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { TranscriptViewer } from "@/components/TranscriptViewer";
 import { useCallLogs, CallStats } from "@/hooks/useCallLogs";
 import { Download, FileText, BarChart3, Database, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const CallLogs = () => {
   const { getCallLogs, getCallStats, updateCallLog } = useCallLogs();
@@ -94,11 +95,7 @@ const CallLogs = () => {
       setStats(fetchedStats);
     } catch (error) {
       console.error('Error loading call logs:', error);
-      toast({
-        title: 'Erro ao carregar logs',
-        description: 'Não foi possível carregar o histórico de chamadas',
-        variant: 'destructive',
-      });
+      toast.error('Não foi possível carregar o histórico de chamadas');
     } finally {
       setLoading(false);
     }
@@ -136,10 +133,7 @@ const CallLogs = () => {
     link.click();
     URL.revokeObjectURL(url);
 
-    toast({
-      title: 'Exportado com sucesso',
-      description: `${calls.length} registros foram exportados`,
-    });
+    toast.success(`${calls.length} registros exportados com sucesso`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -177,21 +171,13 @@ const CallLogs = () => {
       // Get Vapi credentials from localStorage
       const savedCredentials = localStorage.getItem('vapi_credentials');
       if (!savedCredentials) {
-        toast({
-          title: 'Credenciais não encontradas',
-          description: 'Configure as credenciais Vapi para acessar gravações',
-          variant: 'destructive',
-        });
+        toast.error('Configure as credenciais Vapi para acessar gravações');
         return;
       }
 
       const { publicKey } = JSON.parse(savedCredentials);
       if (!publicKey) {
-        toast({
-          title: 'Credenciais inválidas',
-          description: 'Public Key do Vapi não encontrada',
-          variant: 'destructive',
-        });
+        toast.error('Public Key do Vapi não encontrada');
         return;
       }
 
@@ -220,24 +206,13 @@ const CallLogs = () => {
           )
         );
 
-        toast({
-          title: 'Gravação encontrada',
-          description: 'A gravação está disponível para reprodução',
-        });
+        toast.success('Gravação disponível para reprodução');
       } else {
-        toast({
-          title: 'Gravação não disponível',
-          description: 'Esta chamada não possui gravação disponível no momento',
-          variant: 'destructive',
-        });
+        toast.error('Esta chamada não possui gravação disponível no momento');
       }
     } catch (error) {
       console.error('Error fetching recording:', error);
-      toast({
-        title: 'Erro ao buscar gravação',
-        description: 'Não foi possível carregar a gravação da chamada',
-        variant: 'destructive',
-      });
+      toast.error('Não foi possível carregar a gravação da chamada');
     } finally {
       setLoadingRecording(false);
     }
@@ -448,6 +423,14 @@ const CallLogs = () => {
                     Gravação não disponível para esta chamada
                   </p>
                 </div>
+              )}
+
+              {/* Transcript Viewer */}
+              {selectedCall.transcript && (
+                <TranscriptViewer 
+                  callLogId={selectedCall.id}
+                  transcript={selectedCall.transcript}
+                />
               )}
 
               {/* Basic Info */}
