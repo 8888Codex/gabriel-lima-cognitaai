@@ -31,6 +31,7 @@ export type Database = {
           error_message: string | null
           id: string
           phone_number_id: string | null
+          recording_url: string | null
           retry_count: number | null
           scheduled_at: string | null
           sentiment: string | null
@@ -55,6 +56,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           phone_number_id?: string | null
+          recording_url?: string | null
           retry_count?: number | null
           scheduled_at?: string | null
           sentiment?: string | null
@@ -79,6 +81,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           phone_number_id?: string | null
+          recording_url?: string | null
           retry_count?: number | null
           scheduled_at?: string | null
           sentiment?: string | null

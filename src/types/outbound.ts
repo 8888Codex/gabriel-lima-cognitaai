@@ -25,6 +25,7 @@ export interface OutboundCall {
   analysis?: any;
   error?: string;
   retryCount?: number;
+  recordingUrl?: string;
 }
 
 export interface BatchCallRequest {
