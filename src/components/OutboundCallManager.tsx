@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { OutboundCall, OutboundCallConfig, BatchCallRequest } from "@/types/outbound";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useCallLogs } from "@/hooks/useCallLogs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +42,7 @@ const OutboundCallManager = ({
   assistantId,
   phoneNumberId,
 }: OutboundCallManagerProps) => {
+  const { saveCallLog, updateCallLog } = useCallLogs();
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [outboundCalls, setOutboundCalls] = useState<OutboundCall[]>([]);
   const [batchMode, setBatchMode] = useState(true);
@@ -127,6 +129,13 @@ const OutboundCallManager = ({
         startedAt: callData.startedAt ? new Date(callData.startedAt) : undefined,
       };
 
+      // Save to database
+      try {
+        await saveCallLog(newCall);
+      } catch (dbError) {
+        console.error('[OutboundCallManager] Error saving to database:', dbError);
+      }
+
       setOutboundCalls((prev) => [...prev, newCall]);
       return newCall;
     } catch (error) {
@@ -161,6 +170,15 @@ const OutboundCallManager = ({
         startedAt: callData.startedAt ? new Date(callData.startedAt) : undefined,
       }));
 
+      // Save all calls to database
+      for (const call of newCalls) {
+        try {
+          await saveCallLog(call);
+        } catch (dbError) {
+          console.error('[OutboundCallManager] Error saving batch call to database:', dbError);
+        }
+      }
+
       setOutboundCalls((prev) => [...prev, ...newCalls]);
       return newCalls;
     } catch (error) {
@@ -183,17 +201,28 @@ const OutboundCallManager = ({
 
       const callData = await response.json();
 
+      const updatedCall = {
+        status: callData.status,
+        startedAt: callData.startedAt ? new Date(callData.startedAt) : undefined,
+        endedAt: callData.endedAt ? new Date(callData.endedAt) : undefined,
+        duration: callData.duration,
+        error: callData.error,
+        analysis: callData.analysis,
+      };
+
+      // Update in database
+      try {
+        await updateCallLog(callId, updatedCall);
+      } catch (dbError) {
+        console.error('[OutboundCallManager] Error updating database:', dbError);
+      }
+
       setOutboundCalls((prev) =>
         prev.map((call) =>
           call.id === callId
             ? {
                 ...call,
-                status: callData.status,
-                startedAt: callData.startedAt ? new Date(callData.startedAt) : call.startedAt,
-                endedAt: callData.endedAt ? new Date(callData.endedAt) : undefined,
-                duration: callData.duration,
-                error: callData.error,
-                analysis: callData.analysis,
+                ...updatedCall,
               }
             : call
         )
