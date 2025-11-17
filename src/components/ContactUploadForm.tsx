@@ -140,8 +140,11 @@ const ContactUploadForm = () => {
         minute: "2-digit"
       });
 
-      // Send messages to webhook one by one with retry logic
-      const webhookUrl = "https://nwhminds.cognitaai.com.br/webhook/ativa%C3%A7%C3%A3o-carol";
+      // Get webhook URL from localStorage or use default
+      const webhookConfig = localStorage.getItem('webhook_config');
+      const webhookUrl = webhookConfig 
+        ? JSON.parse(webhookConfig).url 
+        : "https://nwhminds.cognitaai.com.br/webhook/ativacao-carol";
       const MAX_RETRIES = 3;
       const RETRY_DELAY = 2000; // 2 seconds between retries
       const REQUEST_TIMEOUT = 10000; // 10 seconds timeout
