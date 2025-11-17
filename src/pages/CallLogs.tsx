@@ -410,6 +410,7 @@ const CallLogs = () => {
                   <AudioPlayer 
                     url={selectedCall.recording_url} 
                     title={`Chamada com ${selectedCall.customer_name || selectedCall.customer_phone}`}
+                    callLogId={selectedCall.id}
                   />
                 </div>
               ) : loadingRecording ? (
