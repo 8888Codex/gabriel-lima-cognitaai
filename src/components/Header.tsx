@@ -5,7 +5,7 @@ import codexLogoBlack from "@/assets/codex-logo-black.png";
 
 export function Header() {
   const { resolvedTheme } = useTheme();
-  const logo = resolvedTheme === "dark" ? codexLogoBlack : codexLogo;
+  const logo = resolvedTheme === "dark" ? codexLogo : codexLogoBlack;
   
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
