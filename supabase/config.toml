@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.validate-share-access]
 verify_jwt = false
+
+[functions.proxy-webhook]
+verify_jwt = false
