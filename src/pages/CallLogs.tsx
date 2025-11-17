@@ -11,8 +11,9 @@ import { CallStatsCards } from "@/components/CallStatsCards";
 import { CallLogFilters } from "@/components/CallLogFilters";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { TranscriptViewer } from "@/components/TranscriptViewer";
+import { ShareRecordingDialog } from "@/components/ShareRecordingDialog";
 import { useCallLogs, CallStats } from "@/hooks/useCallLogs";
-import { Download, FileText, BarChart3, Database, Loader2 } from "lucide-react";
+import { Download, FileText, BarChart3, Database, Loader2, Share2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -34,6 +35,8 @@ const CallLogs = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedCall, setSelectedCall] = useState<any | null>(null);
   const [loadingRecording, setLoadingRecording] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareCallId, setShareCallId] = useState<string | null>(null);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -334,16 +337,29 @@ const CallLogs = () => {
                             <span className="text-2xl">{getSentimentEmoji(call.sentiment)}</span>
                           </TableCell>
                           <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedCall(call);
-                              }}
-                            >
-                              Ver detalhes
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShareCallId(call.id);
+                                  setShareDialogOpen(true);
+                                }}
+                              >
+                                <Share2 className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCall(call);
+                                }}
+                              >
+                                Ver detalhes
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -512,6 +528,15 @@ const CallLogs = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Share Dialog */}
+      {shareCallId && (
+        <ShareRecordingDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          callLogId={shareCallId}
+        />
+      )}
     </div>
   );
 };
