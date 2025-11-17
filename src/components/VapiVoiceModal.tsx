@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
@@ -68,6 +68,20 @@ interface Message {
   timestamp: Date;
 }
 
+interface CallAnalysis {
+  summary?: string;
+  structuredData?: Record<string, any>;
+  successEvaluation?: string | number | boolean;
+}
+
+interface CallInfo {
+  id: string;
+  startedAt?: Date;
+  endedAt?: Date;
+  duration: number;
+  analysis?: CallAnalysis;
+}
+
 interface VapiVoiceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -87,6 +101,8 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<VapiTheme>('blue');
   const [showThemeSelector, setShowThemeSelector] = useState(false);
+  const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -161,6 +177,51 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     });
   };
 
+  // Função para buscar análise da chamada
+  const fetchCallAnalysis = async (callId: string) => {
+    setIsLoadingAnalysis(true);
+    
+    try {
+      // Aguardar alguns segundos para a análise ser processada
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+        headers: {
+          'Authorization': `Bearer ${publicKey}`,
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch call analysis');
+      }
+      
+      const callData = await response.json();
+      
+      // Atualizar callInfo com dados de análise
+      setCallInfo(prev => prev ? {
+        ...prev,
+        endedAt: new Date(),
+        analysis: callData.analysis
+      } : null);
+      
+      // Mostrar toast de sucesso
+      toast({
+        title: 'Análise concluída',
+        description: 'A análise da chamada foi processada com sucesso',
+      });
+      
+    } catch (error) {
+      console.error('Error fetching call analysis:', error);
+      toast({
+        title: 'Erro ao buscar análise',
+        description: 'Não foi possível recuperar a análise da chamada',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  };
+
   const initializeVapi = () => {
     if (!publicKey.trim()) {
       toast({
@@ -189,6 +250,12 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         setIsConnecting(false);
         setShowConfig(false);
         
+        setCallInfo({
+          id: '', // ID será capturado via message event
+          startedAt: new Date(),
+          duration: 0,
+        });
+        
         timerRef.current = setInterval(() => {
           setCallDuration((prev) => prev + 1);
         }, 1000);
@@ -199,7 +266,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         });
       });
 
-      vapiInstance.on('call-end', () => {
+      vapiInstance.on('call-end', async () => {
         console.log('Call ended');
         setIsCallActive(false);
         setIsSpeaking(false);
@@ -213,6 +280,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           title: 'Chamada encerrada',
           description: `Duração: ${formatDuration(callDuration)}`,
         });
+
+        // Buscar análise da chamada
+        if (callInfo?.id) {
+          await fetchCallAnalysis(callInfo.id);
+        }
       });
 
       vapiInstance.on('speech-start', () => {
@@ -224,6 +296,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       });
 
       vapiInstance.on('message', (message: any) => {
+        // Capturar call_id se disponível
+        if (message.call?.id) {
+          setCallInfo(prev => prev ? { ...prev, id: message.call.id } : {
+            id: message.call.id,
+            startedAt: new Date(),
+            duration: 0,
+          });
+        }
+        
         if (message.type === 'transcript' && message.transcript) {
           addOrUpdateMessage({
             role: message.role,
@@ -339,19 +420,58 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     let mimeType: string;
 
     if (format === 'txt') {
-      content = messages
+      let textContent = `Transcrição da Conversa\n`;
+      textContent += `Data: ${new Date().toLocaleDateString('pt-BR')}\n`;
+      
+      if (callInfo?.duration) {
+        textContent += `Duração: ${formatDuration(callInfo.duration)}\n`;
+      }
+      
+      // Adicionar análise se disponível
+      if (callInfo?.analysis) {
+        textContent += `\n--- ANÁLISE DA CHAMADA ---\n\n`;
+        
+        if (callInfo.analysis.summary) {
+          textContent += `Resumo:\n${callInfo.analysis.summary}\n\n`;
+        }
+        
+        if (callInfo.analysis.structuredData) {
+          textContent += `Dados Extraídos:\n`;
+          Object.entries(callInfo.analysis.structuredData).forEach(([key, value]) => {
+            textContent += `- ${key}: ${value}\n`;
+          });
+          textContent += `\n`;
+        }
+        
+        if (callInfo.analysis.successEvaluation !== undefined) {
+          textContent += `Avaliação de Sucesso: ${callInfo.analysis.successEvaluation}\n\n`;
+        }
+      }
+      
+      textContent += `\n--- TRANSCRIÇÃO ---\n\n`;
+      
+      textContent += messages
         .map((msg) => {
           const time = msg.timestamp.toLocaleString('pt-BR');
           const role = msg.role === 'user' ? 'Você' : 'Assistente';
           return `[${time}] ${role}: ${msg.transcript}`;
         })
         .join('\n\n');
+        
+      content = textContent;
       filename = `transcricao-vapi-${new Date().toISOString().slice(0, 10)}.txt`;
       mimeType = 'text/plain';
     } else {
       const exportData = {
         exportDate: new Date().toISOString(),
         callDuration: formatDuration(callDuration),
+        callInfo: callInfo ? {
+          id: callInfo.id,
+          duration: callInfo.duration,
+          startedAt: callInfo.startedAt,
+          endedAt: callInfo.endedAt,
+          analysis: callInfo.analysis
+        } : null,
         messages: messages.map((msg) => ({
           role: msg.role,
           transcript: msg.transcript,
@@ -702,6 +822,70 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       Encerrar
                     </Button>
                   </div>
+
+                  {/* Seção de Análise da Chamada */}
+                  {!isCallActive && callInfo?.analysis && (
+                    <div className="mt-4 p-4 border rounded-lg bg-muted/50 space-y-3">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        Análise da Chamada
+                      </h3>
+                      
+                      {/* Resumo */}
+                      {callInfo.analysis.summary && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            Resumo:
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {callInfo.analysis.summary}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Dados Estruturados */}
+                      {callInfo.analysis.structuredData && Object.keys(callInfo.analysis.structuredData).length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium flex items-center gap-1">
+                            <Database className="h-3 w-3" />
+                            Dados Extraídos:
+                          </p>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            {Object.entries(callInfo.analysis.structuredData).map(([key, value]) => (
+                              <div key={key} className="flex justify-between gap-2">
+                                <span className="font-medium">{key}:</span>
+                                <span className="text-right">{String(value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Avaliação de Sucesso */}
+                      {callInfo.analysis.successEvaluation !== undefined && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Avaliação de Sucesso:
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {typeof callInfo.analysis.successEvaluation === 'boolean' 
+                              ? (callInfo.analysis.successEvaluation ? '✅ Sucesso' : '❌ Falhou')
+                              : callInfo.analysis.successEvaluation}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Indicador de carregamento */}
+                  {isLoadingAnalysis && (
+                    <div className="mt-4 p-4 border rounded-lg bg-muted/50 flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Processando análise da chamada...</span>
+                    </div>
+                  )}
 
                   {messages.length > 0 && !isCallActive && (
                     <div className="flex justify-center gap-2">
