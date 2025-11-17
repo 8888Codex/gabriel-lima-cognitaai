@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2, ChevronDown, Settings } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2, ChevronDown, Settings, RefreshCw, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
@@ -99,6 +100,47 @@ interface VapiVoiceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// Schema pré-configurado para análise de sentimento
+const DEFAULT_SENTIMENT_SCHEMA = {
+  type: "object",
+  properties: {
+    sentiment: { 
+      type: "string", 
+      enum: ["positive", "neutral", "negative"],
+      description: "Sentimento geral da conversa"
+    },
+    customerSatisfaction: { 
+      type: "string",
+      enum: ["very_satisfied", "satisfied", "neutral", "dissatisfied", "very_dissatisfied"],
+      description: "Nível de satisfação do cliente"
+    },
+    emotionalTone: {
+      type: "array",
+      items: { type: "string" },
+      description: "Tons emocionais detectados (ex: frustrated, happy, confused, calm)"
+    },
+    keyTopics: {
+      type: "array",
+      items: { type: "string" },
+      description: "Principais tópicos discutidos"
+    },
+    urgencyLevel: {
+      type: "string",
+      enum: ["low", "medium", "high"],
+      description: "Nível de urgência da questão"
+    },
+    followUpRequired: {
+      type: "boolean",
+      description: "Se é necessário follow-up"
+    },
+    nextSteps: {
+      type: "string",
+      description: "Próximos passos recomendados"
+    }
+  },
+  required: ["sentiment", "customerSatisfaction", "followUpRequired"]
+};
 
 const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [vapi, setVapi] = useState<Vapi | null>(null);
@@ -194,12 +236,13 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       const lastMessage = prevMessages[prevMessages.length - 1];
       const timeDifference = newMessage.timestamp.getTime() - lastMessage.timestamp.getTime();
       
-      // Se for do mesmo role e menos de 3 segundos de diferença, agrupar
+      // Se for do mesmo role e menos de 3 segundos de diferença, SUBSTITUIR (não concatenar)
+      // porque o Vapi envia transcripts acumulativos
       if (lastMessage.role === newMessage.role && timeDifference < 3000) {
         const updatedMessages = [...prevMessages];
         updatedMessages[updatedMessages.length - 1] = {
           ...lastMessage,
-          transcript: lastMessage.transcript + ' ' + newMessage.transcript,
+          transcript: newMessage.transcript, // SUBSTITUIR, não concatenar!
           timestamp: newMessage.timestamp,
         };
         return updatedMessages;
@@ -211,12 +254,17 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   };
 
   // Função para buscar análise da chamada
-  const fetchCallAnalysis = async (callId: string) => {
+  const fetchCallAnalysis = async (callId: string, retryCount = 0) => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 10000; // 10 segundos entre tentativas
+    
     setIsLoadingAnalysis(true);
     
     try {
-      // Aguardar alguns segundos para a análise ser processada
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Aguardar 8 segundos para a análise começar a processar
+      await new Promise(resolve => setTimeout(resolve, 8000));
+      
+      console.log(`[Call Analysis] Buscando análise para call ID: ${callId} (tentativa ${retryCount + 1})`);
       
       const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
         headers: {
@@ -225,10 +273,27 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch call analysis');
+        throw new Error(`API returned ${response.status}: ${response.statusText}`);
       }
       
       const callData = await response.json();
+      console.log('[Call Analysis] Dados recebidos:', callData);
+      console.log('[Call Analysis] Análise:', callData.analysis);
+      
+      // Verificar se a análise existe e está completa
+      if (!callData.analysis || Object.keys(callData.analysis).length === 0) {
+        console.warn('[Call Analysis] Análise ainda não disponível ou vazia');
+        
+        // Retry se ainda houver tentativas
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[Call Analysis] Tentando novamente em ${RETRY_DELAY/1000}s...`);
+          setIsLoadingAnalysis(false);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          return fetchCallAnalysis(callId, retryCount + 1);
+        } else {
+          throw new Error('Análise não disponível após múltiplas tentativas');
+        }
+      }
       
       // Atualizar callInfo com dados de análise
       setCallInfo(prev => prev ? {
@@ -237,17 +302,16 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         analysis: callData.analysis
       } : null);
       
-      // Mostrar toast de sucesso
       toast({
         title: 'Análise concluída',
         description: 'A análise da chamada foi processada com sucesso',
       });
       
     } catch (error) {
-      console.error('Error fetching call analysis:', error);
+      console.error('[Call Analysis] Erro:', error);
       toast({
         title: 'Erro ao buscar análise',
-        description: 'Não foi possível recuperar a análise da chamada',
+        description: error instanceof Error ? error.message : 'Não foi possível recuperar a análise da chamada',
         variant: 'destructive',
       });
     } finally {
@@ -605,6 +669,33 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
   };
 
+  // Helper functions para visualização de sentimento
+  const getSentimentEmoji = (sentiment: string) => {
+    const map: Record<string, string> = {
+      'positive': '😊',
+      'neutral': '😐',
+      'negative': '😞',
+      'very_satisfied': '🤩',
+      'satisfied': '😊',
+      'dissatisfied': '😕',
+      'very_dissatisfied': '😡'
+    };
+    return map[sentiment.toLowerCase()] || '';
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    const map: Record<string, string> = {
+      'positive': 'text-green-600',
+      'neutral': 'text-yellow-600',
+      'negative': 'text-red-600',
+      'very_satisfied': 'text-green-600',
+      'satisfied': 'text-green-500',
+      'dissatisfied': 'text-orange-600',
+      'very_dissatisfied': 'text-red-600'
+    };
+    return map[sentiment.toLowerCase()] || 'text-muted-foreground';
+  };
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       if (!newOpen) {
@@ -877,6 +968,24 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                             onChange={(e) => setStructuredDataSchema(e.target.value)}
                             className="w-full min-h-[120px] text-sm font-mono"
                           />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setStructuredDataSchema(JSON.stringify(DEFAULT_SENTIMENT_SCHEMA, null, 2))}
+                            >
+                              Usar Schema de Sentimento
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setStructuredDataSchema('')}
+                            >
+                              Limpar
+                            </Button>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             JSON Schema para estruturar os dados extraídos
                           </p>
@@ -924,6 +1033,21 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         </div>
                       </CollapsibleContent>
                     </Collapsible>
+
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>⚠️ Importante sobre Call Analysis</AlertTitle>
+                      <AlertDescription>
+                        O <code className="text-xs bg-muted px-1 py-0.5 rounded">analysisPlan</code> configurado aqui é apenas uma <strong>referência local</strong>. 
+                        Para que a análise funcione, você também precisa configurar o <strong>analysisPlan 
+                        no seu Assistant</strong> via{' '}
+                        <a href="https://dashboard.vapi.ai" target="_blank" rel="noopener noreferrer" className="underline">
+                          Vapi Dashboard
+                        </a> ou API.
+                        <br/><br/>
+                        💡 Dica: Use o botão "Usar Schema de Sentimento" para ter um schema pré-configurado.
+                      </AlertDescription>
+                    </Alert>
 
                     <div className="flex gap-2">
                       <Button
@@ -1082,20 +1206,31 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         </div>
                       )}
                       
-                      {/* Dados Estruturados */}
+                      {/* Dados Estruturados - Análise de Sentimento */}
                       {callInfo.analysis.structuredData && Object.keys(callInfo.analysis.structuredData).length > 0 && (
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <p className="text-sm font-medium flex items-center gap-1">
                             <Database className="h-3 w-3" />
-                            Dados Extraídos:
+                            Análise de Sentimento:
                           </p>
-                          <div className="text-sm text-muted-foreground space-y-1">
-                            {Object.entries(callInfo.analysis.structuredData).map(([key, value]) => (
-                              <div key={key} className="flex justify-between gap-2">
-                                <span className="font-medium">{key}:</span>
-                                <span className="text-right">{String(value)}</span>
-                              </div>
-                            ))}
+                          <div className="text-sm space-y-2">
+                            {Object.entries(callInfo.analysis.structuredData).map(([key, value]) => {
+                              const isArray = Array.isArray(value);
+                              const isSentiment = key.toLowerCase().includes('sentiment') || 
+                                                key.toLowerCase().includes('satisfaction');
+                              
+                              return (
+                                <div key={key} className="flex justify-between gap-2 p-2 bg-background rounded">
+                                  <span className="font-medium capitalize">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}:
+                                  </span>
+                                  <span className={`text-right ${isSentiment ? getSentimentColor(String(value)) : ''}`}>
+                                    {isSentiment && getSentimentEmoji(String(value))} 
+                                    {isArray ? (value as string[]).join(', ') : String(value)}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -1143,6 +1278,21 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         <Download className="mr-2 h-3 w-3" />
                         Baixar JSON
                       </Button>
+                      {callInfo?.id && (
+                        <Button
+                          onClick={() => fetchCallAnalysis(callInfo.id)}
+                          variant="ghost"
+                          size="sm"
+                          disabled={isLoadingAnalysis}
+                        >
+                          {isLoadingAnalysis ? (
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="mr-2 h-3 w-3" />
+                          )}
+                          Buscar Análise
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
