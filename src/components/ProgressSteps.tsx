@@ -3,6 +3,7 @@ import { Card, CardGradient, CardContent, CardHeader, CardTitle } from "@/compon
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { CircularProgress } from "@/components/ui/circular-progress";
 
 interface Contact {
   name: string;
@@ -23,38 +24,50 @@ const ProgressSteps = ({ contacts, currentIndex, isPaused, onTogglePause }: Prog
   return (
     <CardGradient animate={!isPaused}>
       <CardHeader>
-        <div className="flex items-center justify-between mb-2">
-          <CardTitle className="flex items-center gap-3">
-            <span>Enviando Mensagens</span>
-            <Button
-              onClick={onTogglePause}
-              variant="outline"
-              size="sm"
-              className="h-8 gap-2"
-            >
-              {isPaused ? (
-                <>
-                  <Play className="h-4 w-4" />
-                  Retomar
-                </>
-              ) : (
-                <>
-                  <Pause className="h-4 w-4" />
-                  Pausar
-                </>
-              )}
-            </Button>
-          </CardTitle>
-          <span className="text-sm font-normal text-muted-foreground">
-            {currentIndex} de {contacts.length}
-          </span>
+        <div className="flex items-center justify-between gap-6">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <CardTitle className="flex items-center gap-3">
+                <span>Enviando Mensagens</span>
+                <Button
+                  onClick={onTogglePause}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2"
+                >
+                  {isPaused ? (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Retomar
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-4 w-4" />
+                      Pausar
+                    </>
+                  )}
+                </Button>
+              </CardTitle>
+              <span className="text-sm font-normal text-muted-foreground">
+                {currentIndex} de {contacts.length}
+              </span>
+            </div>
+            {isPaused && (
+              <p className="text-sm text-orange-600 dark:text-orange-400 mb-2">
+                Envio pausado - Clique em "Retomar" para continuar
+              </p>
+            )}
+            <Progress value={progress} className="mt-3" />
+          </div>
+          
+          <div className="flex-shrink-0">
+            <CircularProgress 
+              value={progress} 
+              size={100} 
+              strokeWidth={6}
+            />
+          </div>
         </div>
-        {isPaused && (
-          <p className="text-sm text-orange-600 dark:text-orange-400 mb-2">
-            Envio pausado - Clique em "Retomar" para continuar
-          </p>
-        )}
-        <Progress value={progress} />
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
