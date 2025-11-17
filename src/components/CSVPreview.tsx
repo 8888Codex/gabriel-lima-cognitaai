@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 interface Contact {
   name: string;
   phone: string;
+  email?: string;
   status?: "pending" | "sending" | "sent" | "failed";
   retryCount?: number;
   [key: string]: string | number | undefined;
@@ -65,6 +66,9 @@ const CSVPreview = ({ contacts, totalCount, onConfirm, onCancel, isValid, errorM
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">{contact.name}</p>
                   <p className="text-xs text-muted-foreground">{contact.phone}</p>
+                  {contact.email && (
+                    <p className="text-xs text-muted-foreground">{contact.email}</p>
+                  )}
                 </div>
                 <Badge variant="outline" className="text-xs">
                   #{index + 1}
