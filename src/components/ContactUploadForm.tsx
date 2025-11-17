@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardGradient, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, CheckCircle2, Phone } from "lucide-react";
+import { Upload, CheckCircle2, Phone, PhoneOutgoing } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ProgressSteps from "@/components/ProgressSteps";
 import SuccessScreen from "@/components/SuccessScreen";
 import CSVPreview from "@/components/CSVPreview";
 import { parseCSV } from "@/utils/csvParser";
+import OutboundCallManager from "@/components/OutboundCallManager";
 interface Contact {
   name: string;
   phone: string;
@@ -34,9 +35,17 @@ const ContactUploadForm = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isValidCSV, setIsValidCSV] = useState(false);
   const [csvError, setCsvError] = useState("");
+  const [isOutboundModalOpen, setIsOutboundModalOpen] = useState(false);
   const {
     toast
   } = useToast();
+
+  // Load Vapi credentials from localStorage
+  const vapiCredentials = localStorage.getItem('vapi_credentials');
+  const vapiConfig = vapiCredentials ? JSON.parse(vapiCredentials) : {};
+  const vapiPublicKey = vapiConfig.publicKey || '';
+  const vapiAssistantId = vapiConfig.assistantId || '';
+  const vapiPhoneNumberId = vapiConfig.phoneNumberId || '';
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
@@ -393,6 +402,19 @@ const ContactUploadForm = () => {
                 <Button type="submit" disabled={isSubmitting} variant="gradient" className="w-full font-semibold py-7 text-base rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
                   Submit
                 </Button>
+                
+                {/* Outbound Calling Button */}
+                {isValidCSV && contacts.length > 0 && !sendingProgress && (
+                  <Button 
+                    type="button"
+                    onClick={() => setIsOutboundModalOpen(true)}
+                    variant="outline"
+                    className="w-full font-semibold py-7 text-base rounded-xl"
+                  >
+                    <PhoneOutgoing className="mr-2 h-5 w-5" />
+                    Fazer Chamadas Outbound
+                  </Button>
+                )}
               </form>}
           </CardContent>
         </CardGradient>
@@ -401,9 +423,21 @@ const ContactUploadForm = () => {
         <div className="mt-6 text-center animate-slide-up" style={{
         animationDelay: "0.2s"
       }}>
-          
+          <p className="text-xs text-muted-foreground font-medium">
+            Carol.ai - Ativação Inteligente
+          </p>
         </div>
       </div>
+      
+      {/* Outbound Call Manager Modal */}
+      <OutboundCallManager
+        open={isOutboundModalOpen}
+        onOpenChange={setIsOutboundModalOpen}
+        contacts={contacts}
+        publicKey={vapiPublicKey}
+        assistantId={vapiAssistantId}
+        phoneNumberId={vapiPhoneNumberId}
+      />
     </div>;
 };
 export default ContactUploadForm;
