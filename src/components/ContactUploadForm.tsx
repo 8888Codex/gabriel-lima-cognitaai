@@ -6,12 +6,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Upload, CheckCircle2, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ProgressSteps from "@/components/ProgressSteps";
+import SuccessScreen from "@/components/SuccessScreen";
 
 const ContactUploadForm = () => {
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [campaignData, setCampaignData] = useState({ contactCount: 0, startTime: "" });
   const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,20 +74,15 @@ const ContactUploadForm = () => {
       // Example: await fetch('your-n8n-webhook-url', { method: 'POST', body: formData })
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      toast({
-        title: "Sucesso!",
-        description: "As ligações foram iniciadas. Você receberá atualizações em breve.",
+      // Prepare campaign data
+      const contactCount = 10; // This would come from parsing the CSV file
+      const startTime = new Date().toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
 
-      // Small delay to show completion
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Reset form
-      setFile(null);
-      setMessage("");
-      setCurrentStep(0);
-      const fileInput = document.getElementById("file-upload") as HTMLInputElement;
-      if (fileInput) fileInput.value = "";
+      setCampaignData({ contactCount, startTime });
+      setShowSuccess(true);
     } catch (error) {
       toast({
         title: "Erro",
@@ -97,7 +95,26 @@ const ContactUploadForm = () => {
     }
   };
 
+  const handleNewCampaign = () => {
+    setShowSuccess(false);
+    setFile(null);
+    setMessage("");
+    setCurrentStep(0);
+    const fileInput = document.getElementById("file-upload") as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
+  };
+
   const contactCount = file ? "10 Contatos para ligar" : "Aguardando arquivo CSV";
+
+  if (showSuccess) {
+    return (
+      <SuccessScreen
+        contactCount={campaignData.contactCount}
+        startTime={campaignData.startTime}
+        onNewCampaign={handleNewCampaign}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4 animate-fade-in">
