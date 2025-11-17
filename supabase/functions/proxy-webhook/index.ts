@@ -19,7 +19,13 @@ serve(async (req) => {
     // Get webhook URL from payload or use default
     const webhookUrl = payload.webhookUrl || "https://nwhminds.cognitaai.com.br/webhook/ativacao-carol";
     
+    // Get custom headers from payload
+    const customHeaders = payload.customHeaders || {};
+    
     console.log('🎯 Encaminhando para:', webhookUrl);
+    if (Object.keys(customHeaders).length > 0) {
+      console.log('🔐 Headers personalizados:', Object.keys(customHeaders).join(', '));
+    }
 
     // Forward request to external webhook with extended timeout
     const controller = new AbortController();
@@ -31,6 +37,7 @@ serve(async (req) => {
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'Lovable-Proxy/1.0',
+          ...customHeaders, // Spread custom headers
         },
         body: JSON.stringify({
           contact: payload.contact,
