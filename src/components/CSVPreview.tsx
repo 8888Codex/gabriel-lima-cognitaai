@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 interface Contact {
   name: string;
   phone: string;
-  [key: string]: string;
+  status?: "pending" | "sending" | "sent" | "failed";
+  retryCount?: number;
+  [key: string]: string | number | undefined;
 }
 
 interface CSVPreviewProps {
