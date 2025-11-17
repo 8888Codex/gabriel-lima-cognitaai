@@ -5,13 +5,17 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Volume2, VolumeX, Download, Loader2 } from "lucide-react";
+import { BookmarkManager } from "./BookmarkManager";
+import { useBookmarks } from "@/hooks/useBookmarks";
+import { Separator } from "@/components/ui/separator";
 
 interface AudioPlayerProps {
   url: string;
   title?: string;
+  callLogId: string;
 }
 
-export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlayerProps) => {
+export const AudioPlayer = ({ url, title = "Gravação da chamada", callLogId }: AudioPlayerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -23,6 +27,7 @@ export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlaye
   
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
+  const { bookmarks } = useBookmarks(callLogId);
 
   useEffect(() => {
     if (!waveformRef.current) return;
@@ -50,6 +55,26 @@ export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlaye
     wavesurfer.on('ready', () => {
       setDuration(wavesurfer.getDuration());
       setIsLoading(false);
+      
+      // Adicionar marcadores de bookmarks
+      bookmarks.forEach((bookmark) => {
+        const markerEl = document.createElement('div');
+        markerEl.style.position = 'absolute';
+        markerEl.style.top = '0';
+        markerEl.style.bottom = '0';
+        markerEl.style.width = '2px';
+        markerEl.style.backgroundColor = bookmark.color || '#ef4444';
+        markerEl.style.left = `${(bookmark.timestamp / wavesurfer.getDuration()) * 100}%`;
+        markerEl.style.cursor = 'pointer';
+        markerEl.style.zIndex = '10';
+        markerEl.title = bookmark.label;
+        
+        markerEl.addEventListener('click', () => {
+          wavesurfer.seekTo(bookmark.timestamp / wavesurfer.getDuration());
+        });
+        
+        waveformRef.current?.appendChild(markerEl);
+      });
     });
 
     wavesurfer.on('audioprocess', () => {
@@ -75,7 +100,7 @@ export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlaye
     return () => {
       wavesurfer.destroy();
     };
-  }, [url]);
+  }, [url, bookmarks]);
 
   // Sincronizar playback rate
   useEffect(() => {
@@ -136,117 +161,133 @@ export const AudioPlayer = ({ url, title = "Gravação da chamada" }: AudioPlaye
 
   if (error) {
     return (
-      <Card className="p-4">
-        <p className="text-sm text-destructive">{error}</p>
+      <Card className="p-6">
+        <div className="text-center text-destructive">
+          <p className="font-semibold mb-2">Erro ao carregar áudio</p>
+          <p className="text-sm">{error}</p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium truncate flex-1">{title}</p>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleDownload}
-          title="Baixar gravação"
-          className="shrink-0"
-        >
-          <Download className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Waveform */}
-      <div className="relative">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        )}
-        <div 
-          ref={waveformRef} 
-          className="w-full rounded-lg overflow-hidden bg-muted/50 border border-border"
-          style={{ minHeight: '80px' }}
-        />
-      </div>
-
-      {/* Time Display */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{formatTime(currentTime)}</span>
-        <span>{formatTime(duration)}</span>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-3">
-        {/* Play/Pause */}
-        <Button
-          variant="default"
-          size="icon"
-          onClick={togglePlayPause}
-          disabled={isLoading}
-          className="shrink-0"
-        >
-          {isPlaying ? (
-            <Pause className="h-4 w-4" />
-          ) : (
-            <Play className="h-4 w-4 ml-0.5" />
-          )}
-        </Button>
-
-        {/* Playback Speed */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Velocidade:</span>
-          <Select 
-            value={playbackRate.toString()} 
-            onValueChange={(val) => setPlaybackRate(parseFloat(val))}
-            disabled={isLoading}
-          >
-            <SelectTrigger className="w-[120px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {playbackRates.map(rate => (
-                <SelectItem key={rate.value} value={rate.value.toString()}>
-                  {rate.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Volume Control */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+    <div className="space-y-4">
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">{title}</h3>
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleMute}
-            className="shrink-0 h-8 w-8"
-          >
-            {isMuted || volume === 0 ? (
-              <VolumeX className="h-4 w-4" />
-            ) : (
-              <Volume2 className="h-4 w-4" />
-            )}
-          </Button>
-          <Slider
-            value={[isMuted ? 0 : volume]}
-            onValueChange={handleVolumeChange}
-            max={1}
-            step={0.01}
-            className="flex-1"
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
             disabled={isLoading}
-          />
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Baixar
+          </Button>
         </div>
-      </div>
 
-      {/* Speed indicator visual feedback */}
-      {playbackRate !== 1 && (
-        <div className="text-xs text-center text-muted-foreground bg-muted/50 py-1.5 rounded-md">
-          Reproduzindo em {playbackRate}x
+        {/* Waveform */}
+        <div className="relative">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-20">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          )}
+          <div ref={waveformRef} className="w-full" />
         </div>
-      )}
-    </Card>
+
+        {/* Controles */}
+        <div className="space-y-4">
+          {/* Play/Pause e Tempo */}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={togglePlayPause}
+              disabled={isLoading}
+            >
+              {isPlaying ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </Button>
+
+            <div className="flex-1">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+              <div className="w-full bg-secondary h-1 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-100"
+                  style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Velocidade e Volume */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                Velocidade:
+              </span>
+              <Select
+                value={playbackRate.toString()}
+                onValueChange={(value) => setPlaybackRate(parseFloat(value))}
+              >
+                <SelectTrigger className="w-32 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {playbackRates.map((rate) => (
+                    <SelectItem key={rate.value} value={rate.value.toString()}>
+                      {rate.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={toggleMute}
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="h-4 w-4" />
+                ) : (
+                  <Volume2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Slider
+                value={[isMuted ? 0 : volume]}
+                max={1}
+                step={0.01}
+                onValueChange={handleVolumeChange}
+                className="w-24"
+              />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Separator />
+
+      <Card className="p-4">
+        <BookmarkManager 
+          callLogId={callLogId}
+          currentTime={currentTime}
+          onSeek={(time) => {
+            if (wavesurferRef.current) {
+              wavesurferRef.current.seekTo(time / wavesurferRef.current.getDuration());
+            }
+          }}
+        />
+      </Card>
+    </div>
   );
 };

@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, User, Headset, MessageCircle } from "lucide-react";
+import { Loader2, User, Headset, MessageCircle, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useBookmarks } from "@/hooks/useBookmarks";
 
 interface TranscriptSegment {
   start: number;
@@ -26,6 +27,7 @@ export const TranscriptViewer = ({
   isLoading = false 
 }: TranscriptViewerProps) => {
   const [selectedSpeaker, setSelectedSpeaker] = useState<string | null>(null);
+  const { bookmarks } = useBookmarks(callLogId);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -69,6 +71,11 @@ export const TranscriptViewer = ({
   const filteredSegments = segments?.filter(
     seg => !selectedSpeaker || seg.speaker === selectedSpeaker
   );
+
+  // Encontrar bookmarks para cada segmento
+  const getBookmarksForSegment = (start: number, end: number) => {
+    return bookmarks.filter(b => b.timestamp >= start && b.timestamp <= end);
+  };
 
   if (isLoading) {
     return (
@@ -128,24 +135,49 @@ export const TranscriptViewer = ({
       {segments && segments.length > 0 ? (
         <ScrollArea className="h-96">
           <div className="space-y-3">
-            {filteredSegments?.map((segment, index) => (
-              <div
-                key={index}
-                className={`p-3 rounded-lg border ${getSpeakerColor(segment.speaker)} animate-fade-in`}
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  {getSpeakerIcon(segment.speaker)}
-                  <span className="text-xs font-medium">
-                    {getSpeakerLabel(segment.speaker)}
-                  </span>
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {formatTime(segment.start)} - {formatTime(segment.end)}
-                  </span>
+            {filteredSegments?.map((segment, index) => {
+              const segmentBookmarks = getBookmarksForSegment(segment.start, segment.end);
+              
+              return (
+                <div key={index} className="space-y-2">
+                  <div
+                    className={`p-3 rounded-lg border ${getSpeakerColor(segment.speaker)} animate-fade-in`}
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      {getSpeakerIcon(segment.speaker)}
+                      <span className="text-xs font-medium">
+                        {getSpeakerLabel(segment.speaker)}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {formatTime(segment.start)} - {formatTime(segment.end)}
+                      </span>
+                    </div>
+                    <p className="text-sm leading-relaxed">{segment.text}</p>
+                  </div>
+
+                  {segmentBookmarks.length > 0 && (
+                    <div className="ml-4 space-y-1">
+                      {segmentBookmarks.map((bookmark) => (
+                        <div
+                          key={bookmark.id}
+                          className="flex items-start gap-2 p-2 rounded bg-accent/30 border-l-2"
+                          style={{ borderLeftColor: bookmark.color }}
+                        >
+                          <Bookmark className="h-3 w-3 mt-0.5 flex-shrink-0" style={{ color: bookmark.color }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium">{bookmark.label}</p>
+                            {bookmark.description && (
+                              <p className="text-xs text-muted-foreground">{bookmark.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm leading-relaxed">{segment.text}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
       ) : (
