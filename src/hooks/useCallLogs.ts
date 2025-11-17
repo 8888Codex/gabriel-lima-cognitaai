@@ -106,6 +106,30 @@ export const useCallLogs = () => {
         .single();
 
       if (error) throw error;
+      
+      // Se a chamada terminou e tem recording_url, disparar transcrição automática
+      if (updates.status === 'ended' && updates.recordingUrl) {
+        console.log('🎙️ Disparando transcrição automática para:', data.id);
+        
+        try {
+          // Disparar transcrição em background (não aguardar)
+          supabase.functions.invoke('transcribe-call', {
+            body: { 
+              callLogId: data.id, 
+              audioUrl: updates.recordingUrl 
+            }
+          }).then(({ error: transcribeError }) => {
+            if (transcribeError) {
+              console.error('Erro ao disparar transcrição:', transcribeError);
+            } else {
+              console.log('✅ Transcrição disparada com sucesso');
+            }
+          });
+        } catch (error) {
+          console.error('Erro ao chamar edge function de transcrição:', error);
+        }
+      }
+      
       return data;
     } catch (error) {
       console.error('[useCallLogs] Error updating call log:', error);
