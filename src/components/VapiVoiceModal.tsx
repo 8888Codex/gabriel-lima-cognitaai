@@ -4,8 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const VAPI_STORAGE_KEY = 'vapi_credentials';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -32,6 +34,20 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  // Carregar credenciais do localStorage
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
+    if (savedCredentials) {
+      try {
+        const { publicKey: savedPublicKey, assistantId: savedAssistantId } = JSON.parse(savedCredentials);
+        setPublicKey(savedPublicKey || '');
+        setAssistantId(savedAssistantId || '');
+      } catch (error) {
+        console.error('Error loading saved credentials:', error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -152,6 +168,16 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const startCall = () => {
     setIsConnecting(true);
     
+    // Salvar credenciais no localStorage
+    try {
+      localStorage.setItem(VAPI_STORAGE_KEY, JSON.stringify({
+        publicKey,
+        assistantId
+      }));
+    } catch (error) {
+      console.error('Error saving credentials:', error);
+    }
+    
     let vapiInstance = vapi;
     if (!vapiInstance) {
       vapiInstance = initializeVapi();
@@ -185,6 +211,16 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const clearCredentials = () => {
+    localStorage.removeItem(VAPI_STORAGE_KEY);
+    setPublicKey('');
+    setAssistantId('');
+    toast({
+      title: 'Credenciais removidas',
+      description: 'As credenciais salvas foram apagadas',
+    });
   };
 
   const resetModal = () => {
@@ -248,21 +284,40 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                   />
                 </div>
 
-                <Button
-                  onClick={startCall}
-                  disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
-                  className="w-full"
-                  variant="gradient"
-                >
-                  {isConnecting ? (
-                    <>Conectando...</>
-                  ) : (
-                    <>
-                      <Phone className="mr-2 h-4 w-4" />
-                      Iniciar Chamada
-                    </>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={startCall}
+                    disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
+                    className="flex-1"
+                    variant="gradient"
+                  >
+                    {isConnecting ? (
+                      <>Conectando...</>
+                    ) : (
+                      <>
+                        <Phone className="mr-2 h-4 w-4" />
+                        Iniciar Chamada
+                      </>
+                    )}
+                  </Button>
+                  
+                  {(publicKey || assistantId) && (
+                    <Button
+                      onClick={clearCredentials}
+                      variant="outline"
+                      size="icon"
+                      title="Limpar credenciais salvas"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   )}
-                </Button>
+                </div>
+                
+                {(publicKey || assistantId) && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    ✓ Credenciais salvas e carregadas automaticamente
+                  </p>
+                )}
               </div>
             </div>
           ) : (
