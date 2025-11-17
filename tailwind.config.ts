@@ -57,6 +57,14 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        codex: {
+          blue: "hsl(var(--codex-blue))",
+          cyan: "hsl(var(--codex-cyan))",
+          mint: "hsl(var(--codex-mint))",
+        },
+      },
+      backgroundImage: {
+        'gradient-codex': 'var(--gradient-codex)',
       },
       borderRadius: {
         lg: "var(--radius)",
