@@ -52,6 +52,13 @@ All colors MUST be HSL.
     --codex-cyan: 191 100% 50%;
     --codex-mint: 160 100% 75%;
     
+    /* Vapi Theme Colors - Default (Blue) */
+    --vapi-primary: 217 100% 55%;
+    --vapi-primary-foreground: 0 0% 100%;
+    --vapi-accent: 191 100% 50%;
+    --vapi-accent-foreground: 0 0% 100%;
+    --vapi-gradient: linear-gradient(135deg, hsl(217 100% 55%), hsl(191 100% 50%));
+    
     /* Custom animations and effects */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --shadow-soft: 0 2px 8px -2px hsl(217 30% 15% / 0.08);
@@ -100,6 +107,13 @@ All colors MUST be HSL.
     --codex-blue: 217 100% 60%;
     --codex-cyan: 191 100% 50%;
     --codex-mint: 160 100% 75%;
+    
+    /* Vapi Theme Colors - Default (Blue) - Dark Mode */
+    --vapi-primary: 217 100% 60%;
+    --vapi-primary-foreground: 0 0% 100%;
+    --vapi-accent: 191 100% 50%;
+    --vapi-accent-foreground: 0 0% 100%;
+    --vapi-gradient: linear-gradient(135deg, hsl(217 100% 60%), hsl(191 100% 50%));
     
     --shadow-soft: 0 2px 8px -2px hsl(0 0% 0% / 0.3);
     --shadow-medium: 0 8px 24px -4px hsl(0 0% 0% / 0.4);

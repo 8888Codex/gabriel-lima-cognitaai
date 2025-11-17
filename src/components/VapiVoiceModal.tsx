@@ -4,10 +4,63 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Eye, EyeOff, Edit2 } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
+const VAPI_THEME_KEY = 'vapi_theme';
+
+type VapiTheme = 'blue' | 'purple' | 'green' | 'orange' | 'pink';
+
+const THEME_PRESETS: Record<VapiTheme, {
+  name: string;
+  primary: string;
+  primaryForeground: string;
+  accent: string;
+  accentForeground: string;
+  gradient: string;
+}> = {
+  blue: {
+    name: 'Azul Oceano',
+    primary: '217 100% 55%',
+    primaryForeground: '0 0% 100%',
+    accent: '191 100% 50%',
+    accentForeground: '0 0% 100%',
+    gradient: 'linear-gradient(135deg, hsl(217 100% 55%), hsl(191 100% 50%))',
+  },
+  purple: {
+    name: 'Roxo Místico',
+    primary: '271 81% 56%',
+    primaryForeground: '0 0% 100%',
+    accent: '291 64% 42%',
+    accentForeground: '0 0% 100%',
+    gradient: 'linear-gradient(135deg, hsl(271 81% 56%), hsl(291 64% 42%))',
+  },
+  green: {
+    name: 'Verde Esmeralda',
+    primary: '142 76% 36%',
+    primaryForeground: '0 0% 100%',
+    accent: '160 84% 39%',
+    accentForeground: '0 0% 100%',
+    gradient: 'linear-gradient(135deg, hsl(142 76% 36%), hsl(160 84% 39%))',
+  },
+  orange: {
+    name: 'Laranja Vibrante',
+    primary: '24 95% 53%',
+    primaryForeground: '0 0% 100%',
+    accent: '38 92% 50%',
+    accentForeground: '0 0% 100%',
+    gradient: 'linear-gradient(135deg, hsl(24 95% 53%), hsl(38 92% 50%))',
+  },
+  pink: {
+    name: 'Rosa Flamingo',
+    primary: '339 82% 56%',
+    primaryForeground: '0 0% 100%',
+    accent: '350 89% 60%',
+    accentForeground: '0 0% 100%',
+    gradient: 'linear-gradient(135deg, hsl(339 82% 56%), hsl(350 89% 60%))',
+  },
+};
 
 interface Message {
   role: 'user' | 'assistant';
@@ -32,12 +85,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [showConfig, setShowConfig] = useState(true);
   const [isEditingCredentials, setIsEditingCredentials] = useState(false);
   const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<VapiTheme>('blue');
+  const [showThemeSelector, setShowThemeSelector] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  // Carregar credenciais do localStorage
+  // Carregar credenciais e tema do localStorage
   useEffect(() => {
     const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
     if (savedCredentials) {
@@ -54,6 +109,12 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       }
     } else {
       setIsEditingCredentials(true);
+    }
+
+    const savedTheme = localStorage.getItem(VAPI_THEME_KEY) as VapiTheme;
+    if (savedTheme && THEME_PRESETS[savedTheme]) {
+      setSelectedTheme(savedTheme);
+      applyTheme(savedTheme);
     }
   }, []);
 
@@ -295,6 +356,29 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     });
   };
 
+  const applyTheme = (theme: VapiTheme) => {
+    const preset = THEME_PRESETS[theme];
+    const root = document.documentElement;
+    
+    root.style.setProperty('--vapi-primary', preset.primary);
+    root.style.setProperty('--vapi-primary-foreground', preset.primaryForeground);
+    root.style.setProperty('--vapi-accent', preset.accent);
+    root.style.setProperty('--vapi-accent-foreground', preset.accentForeground);
+    root.style.setProperty('--vapi-gradient', preset.gradient);
+  };
+
+  const handleThemeChange = (theme: VapiTheme) => {
+    setSelectedTheme(theme);
+    applyTheme(theme);
+    localStorage.setItem(VAPI_THEME_KEY, theme);
+    setShowThemeSelector(false);
+    
+    toast({
+      title: 'Tema atualizado',
+      description: `Tema "${THEME_PRESETS[theme].name}" aplicado com sucesso`,
+    });
+  };
+
   const resetModal = () => {
     setMessages([]);
     setCallDuration(0);
@@ -318,12 +402,60 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center justify-between">
             <span>Assistente de Voz Vapi</span>
-            {isCallActive && (
-              <span className="text-sm font-normal text-muted-foreground">
-                {formatDuration(callDuration)}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isCallActive && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {formatDuration(callDuration)}
+                </span>
+              )}
+              <Button
+                onClick={() => setShowThemeSelector(!showThemeSelector)}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Alterar tema de cores"
+              >
+                <Palette className="h-4 w-4" />
+              </Button>
+            </div>
           </DialogTitle>
+          
+          {showThemeSelector && (
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3 animate-fade-in">
+              <p className="text-sm font-medium text-foreground">Escolha um tema de cores:</p>
+              <div className="grid grid-cols-5 gap-2">
+                {(Object.keys(THEME_PRESETS) as VapiTheme[]).map((theme) => (
+                  <button
+                    key={theme}
+                    onClick={() => handleThemeChange(theme)}
+                    className={`relative group flex flex-col items-center gap-2 p-3 rounded-lg transition-all hover:scale-105 ${
+                      selectedTheme === theme
+                        ? 'ring-2 ring-offset-2 ring-offset-background'
+                        : 'hover:bg-muted'
+                    }`}
+                    style={{
+                      background: THEME_PRESETS[theme].gradient,
+                    }}
+                    title={THEME_PRESETS[theme].name}
+                  >
+                    <div className="w-full h-12 rounded-md" />
+                    {selectedTheme === theme && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-6 h-6 rounded-full bg-white shadow-lg flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-vapi-primary" />
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Tema atual: <span className="font-medium">{THEME_PRESETS[selectedTheme].name}</span>
+                </p>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -365,8 +497,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       <Button
                         onClick={startCall}
                         disabled={isConnecting}
-                        className="flex-1"
-                        variant="gradient"
+                        className="flex-1 bg-gradient-vapi hover:opacity-90"
                       >
                         {isConnecting ? (
                           <>Conectando...</>
@@ -434,8 +565,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       <Button
                         onClick={startCall}
                         disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
-                        className="flex-1"
-                        variant="gradient"
+                        className="flex-1 bg-gradient-vapi hover:opacity-90"
                       >
                         {isConnecting ? (
                           <>Conectando...</>
@@ -495,7 +625,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         <div
                           className={`max-w-[80%] rounded-lg p-3 ${
                             msg.role === 'user'
-                              ? 'bg-primary text-primary-foreground'
+                              ? 'bg-gradient-vapi text-white'
                               : 'bg-muted text-foreground'
                           }`}
                         >
@@ -524,7 +654,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                     <div
                       className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-colors ${
                         isSpeaking
-                          ? 'bg-primary text-primary-foreground'
+                          ? 'bg-gradient-vapi text-white'
                           : 'bg-muted text-muted-foreground'
                       }`}
                     >

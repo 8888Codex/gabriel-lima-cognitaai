@@ -62,9 +62,16 @@ export default {
           cyan: "hsl(var(--codex-cyan))",
           mint: "hsl(var(--codex-mint))",
         },
+        vapi: {
+          primary: "hsl(var(--vapi-primary))",
+          "primary-foreground": "hsl(var(--vapi-primary-foreground))",
+          accent: "hsl(var(--vapi-accent))",
+          "accent-foreground": "hsl(var(--vapi-accent-foreground))",
+        },
       },
       backgroundImage: {
         'gradient-codex': 'var(--gradient-codex)',
+        'gradient-vapi': 'var(--vapi-gradient)',
       },
       borderRadius: {
         lg: "var(--radius)",
