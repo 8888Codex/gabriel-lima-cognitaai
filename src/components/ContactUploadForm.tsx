@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import ProgressSteps from "@/components/ProgressSteps";
 import SuccessScreen from "@/components/SuccessScreen";
 import CSVPreview from "@/components/CSVPreview";
-import { parseCSV } from "@/utils/csvParser";
+import { parseCSV } from "@/utils/campaignCsvParser";
 import OutboundCallManager from "@/components/OutboundCallManager";
 interface Contact {
   name: string;
@@ -52,25 +52,39 @@ const ContactUploadForm = () => {
       if (selectedFile.type === "text/csv" || selectedFile.name.endsWith(".csv")) {
         setFile(selectedFile);
 
-        // Parse and validate CSV
-        const result = await parseCSV(selectedFile);
-        if (result.isValid) {
-          setContacts(result.contacts);
+        try {
+          // Parse and validate CSV
+          const text = await selectedFile.text();
+          const result = parseCSV(text);
+          
+          const parsedContacts = result.contacts.map(contact => ({
+            name: contact.customer_name || '',
+            phone: contact.customer_phone,
+            email: contact.customer_email || '',
+            status: 'pending' as const
+          }));
+          
+          setContacts(parsedContacts);
           setIsValidCSV(true);
           setCsvError("");
           setShowPreview(true);
+          
+          if (result.errors.length > 0) {
+            console.warn('Avisos ao processar CSV:', result.errors);
+          }
+          
           toast({
             title: "Arquivo validado",
-            description: `${result.contacts.length} contatos encontrados.`
+            description: `${parsedContacts.length} contatos encontrados.`
           });
-        } else {
+        } catch (error: any) {
           setContacts([]);
           setIsValidCSV(false);
-          setCsvError(result.errorMessage || "Erro ao processar arquivo");
+          setCsvError(error.message || "Erro ao processar arquivo");
           setShowPreview(true);
           toast({
             title: "Erro no arquivo",
-            description: result.errorMessage,
+            description: error.message,
             variant: "destructive"
           });
         }

@@ -35,6 +35,17 @@ export function Header() {
               <FileText className="h-4 w-4" />
               Histórico
             </Link>
+            <Link 
+              to="/campaigns" 
+              className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary ${
+                location.pathname === '/campaigns' ? 'text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Campanhas
+            </Link>
           </nav>
         </div>
         <ThemeToggle />

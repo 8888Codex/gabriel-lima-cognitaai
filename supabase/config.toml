@@ -1,1 +1,4 @@
 project_id = "dinrkgwfwvnjptpymdym"
+
+[functions.process-call-queue]
+verify_jwt = false
