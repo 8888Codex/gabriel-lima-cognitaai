@@ -3,6 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('theme');
+          var isDark = t === 'dark' || ((!t || t === 'system') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
+        } catch (e) {}
+      })();
+    </script>
     <title>Ativação Carol - Sistema de Ligações</title>
     <meta name="description" content="Sistema automatizado de ligações para contatos via n8n" />
     <meta name="author" content="Ativação Carol" />
