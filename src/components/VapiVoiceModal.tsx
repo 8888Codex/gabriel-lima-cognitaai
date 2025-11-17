@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
 const VAPI_THEME_KEY = 'vapi_theme';
+const WEBHOOK_CONFIG_KEY = 'webhook_config';
 
 type VapiTheme = 'blue' | 'purple' | 'green' | 'orange' | 'pink';
 
@@ -161,6 +162,9 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   
   // Estados para Analysis Plan
   const [summaryPrompt, setSummaryPrompt] = useState('');
@@ -208,6 +212,17 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     if (savedTheme && THEME_PRESETS[savedTheme]) {
       setSelectedTheme(savedTheme);
       applyTheme(savedTheme);
+    }
+
+    const storedWebhook = localStorage.getItem(WEBHOOK_CONFIG_KEY);
+    if (storedWebhook) {
+      try {
+        const config = JSON.parse(storedWebhook);
+        setWebhookUrl(config.url || '');
+        setWebhookStatus(config.status || 'unknown');
+      } catch (error) {
+        console.error('Error loading webhook config:', error);
+      }
     }
   }, []);
 
@@ -478,6 +493,90 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
   };
 
+  const testWebhook = async () => {
+    if (!webhookUrl) {
+      toast({
+        variant: "destructive",
+        title: "URL do Webhook Obrigatória",
+        description: "Por favor, insira a URL do webhook.",
+      });
+      return;
+    }
+
+    setIsTestingWebhook(true);
+    setWebhookStatus('unknown');
+
+    try {
+      const testPayload = {
+        test: true,
+        contact: {
+          name: "Teste Sistema",
+          phone: "+5511999999999",
+          email: "teste@exemplo.com"
+        },
+        message: "Mensagem de teste do sistema",
+        timestamp: new Date().toISOString()
+      };
+
+      console.log("🧪 Testando webhook:", webhookUrl);
+      console.log("📤 Payload de teste:", testPayload);
+
+      const startTime = Date.now();
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(testPayload),
+        signal: AbortSignal.timeout(10000)
+      });
+      const latency = Date.now() - startTime;
+
+      console.log("📥 Resposta:", response.status, response.statusText);
+      console.log("⏱️ Latência:", latency, "ms");
+
+      const responseText = await response.text();
+      console.log("📄 Corpo da resposta:", responseText);
+
+      if (response.ok) {
+        setWebhookStatus('online');
+        const config = {
+          url: webhookUrl,
+          lastTested: new Date().toISOString(),
+          status: 'online',
+          latency
+        };
+        localStorage.setItem(WEBHOOK_CONFIG_KEY, JSON.stringify(config));
+
+        toast({
+          title: "✅ Webhook Online",
+          description: `Resposta recebida em ${latency}ms. Status: ${response.status}`,
+        });
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error: any) {
+      console.error("❌ Erro ao testar webhook:", error);
+      setWebhookStatus('offline');
+      
+      const config = {
+        url: webhookUrl,
+        lastTested: new Date().toISOString(),
+        status: 'offline',
+        error: error.message
+      };
+      localStorage.setItem(WEBHOOK_CONFIG_KEY, JSON.stringify(config));
+
+      toast({
+        variant: "destructive",
+        title: "❌ Webhook Offline",
+        description: error.name === 'AbortError' 
+          ? "Timeout: O webhook não respondeu em 10 segundos."
+          : `Erro: ${error.message}`,
+      });
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
   const startCall = () => {
     setIsConnecting(true);
     
@@ -509,6 +608,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         phoneNumberId,
         analysisPlan: Object.keys(analysisPlan).length > 0 ? analysisPlan : undefined
       }));
+
+      if (webhookUrl) {
+        const config = {
+          url: webhookUrl,
+          lastTested: new Date().toISOString(),
+          status: webhookStatus
+        };
+        localStorage.setItem(WEBHOOK_CONFIG_KEY, JSON.stringify(config));
+      }
     } catch (error) {
       console.error('Error saving credentials:', error);
     }
@@ -950,8 +1058,51 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       </p>
                     </div>
 
+                    {/* Webhook Configuration */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        URL do Webhook (Opcional)
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="url"
+                          placeholder="https://seu-webhook.com/endpoint"
+                          value={webhookUrl}
+                          onChange={(e) => setWebhookUrl(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={testWebhook}
+                          disabled={!webhookUrl || isTestingWebhook}
+                          variant="outline"
+                          size="icon"
+                        >
+                          {isTestingWebhook ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      {webhookStatus !== 'unknown' && (
+                        <div className={`flex items-center gap-1 text-xs ${
+                          webhookStatus === 'online' ? 'text-green-600' : 'text-destructive'
+                        }`}>
+                          {webhookStatus === 'online' ? (
+                            <CheckCircle className="h-3 w-3" />
+                          ) : (
+                            <AlertCircle className="h-3 w-3" />
+                          )}
+                          <span>{webhookStatus === 'online' ? 'Webhook Online' : 'Webhook Offline'}</span>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        URL para envio de dados das chamadas (integração com n8n, Make, etc)
+                      </p>
+                    </div>
+
                     {/* Configurações Avançadas - Analysis Plan */}
-                    <Collapsible 
+                    <Collapsible
                       open={showAdvancedConfig} 
                       onOpenChange={setShowAdvancedConfig}
                       className="border rounded-lg p-4 space-y-3"

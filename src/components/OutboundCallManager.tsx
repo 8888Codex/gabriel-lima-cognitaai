@@ -366,16 +366,16 @@ const OutboundCallManager = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PhoneOutgoing className="h-5 w-5" />
-            Chamadas Outbound
+            Gerenciar Chamadas Outbound
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={currentTab} onValueChange={setCurrentTab}>
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
             <TabsTrigger value="configure">Configurar</TabsTrigger>
             <TabsTrigger value="monitor">
               Monitorar {callsInProgress > 0 && `(${callsInProgress})`}
@@ -383,7 +383,9 @@ const OutboundCallManager = ({
             <TabsTrigger value="history">Histórico</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="configure" className="space-y-4">
+          <TabsContent value="configure" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full pr-4">
+              <div className="space-y-4 pb-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -561,6 +563,8 @@ const OutboundCallManager = ({
                 </>
               )}
             </Button>
+              </div>
+            </ScrollArea>
           </TabsContent>
 
           <TabsContent value="monitor" className="space-y-4">
@@ -685,8 +689,10 @@ const OutboundCallManager = ({
             </Card>
           </TabsContent>
 
-          <TabsContent value="history">
-            <OutboundCallHistory calls={outboundCalls} />
+          <TabsContent value="history" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full pr-4">
+              <OutboundCallHistory calls={outboundCalls} />
+            </ScrollArea>
           </TabsContent>
         </Tabs>
       </DialogContent>
