@@ -9,6 +9,15 @@ interface CircularProgressProps {
   animate?: boolean;
 }
 
+const particles = [
+  { color: "hsl(var(--codex-blue))", delay: "0s", tx: "40px", ty: "-30px" },
+  { color: "hsl(var(--codex-cyan))", delay: "0.5s", tx: "-35px", ty: "-25px" },
+  { color: "hsl(var(--codex-mint))", delay: "1s", tx: "30px", ty: "35px" },
+  { color: "hsl(var(--codex-blue))", delay: "1.5s", tx: "-40px", ty: "30px" },
+  { color: "hsl(var(--codex-cyan))", delay: "2s", tx: "0px", ty: "-45px" },
+  { color: "hsl(var(--codex-mint))", delay: "2.5s", tx: "45px", ty: "0px" },
+];
+
 export function CircularProgress({
   value,
   size = 120,
@@ -23,10 +32,28 @@ export function CircularProgress({
 
   return (
     <div className={cn("relative inline-flex items-center justify-center", className)}>
+      {/* Animated particles */}
+      {animate && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          {particles.map((particle, index) => (
+            <div
+              key={index}
+              className="absolute w-2 h-2 rounded-full animate-[particle-float_3s_ease-in-out_infinite]"
+              style={{
+                backgroundColor: particle.color,
+                animationDelay: particle.delay,
+                "--tx": particle.tx,
+                "--ty": particle.ty,
+              } as React.CSSProperties}
+            />
+          ))}
+        </div>
+      )}
+      
       <svg
         width={size}
         height={size}
-        className={cn("transform -rotate-90", animate && "animate-[spin-slow_3s_linear_infinite]")}
+        className={cn("transform -rotate-90 relative z-10", animate && "animate-[spin-slow_3s_linear_infinite]")}
       >
         {/* Background circle */}
         <circle
@@ -64,7 +91,7 @@ export function CircularProgress({
       </svg>
       
       {showPercentage && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
           <span className="text-3xl font-bold bg-gradient-codex bg-clip-text text-transparent">
             {Math.round(value)}%
           </span>
