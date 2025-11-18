@@ -1409,6 +1409,113 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       </div>
                     </div>
 
+                    {/* Botões de ação */}
+                    {isEditingCredentials ? (
+                      // Modo de edição: mostrar Salvar e Cancelar
+                      <>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={saveCredentials}
+                            disabled={!publicKey.trim() || !assistantId.trim()}
+                            className="flex-1 bg-primary hover:bg-primary/90"
+                          >
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Salvar Configurações
+                          </Button>
+                          
+                          {hasStoredCredentials && (
+                            <Button
+                              onClick={() => {
+                                // Recarregar credenciais originais e analysisPlan
+                                const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
+                                if (savedCredentials) {
+                                  const parsed = JSON.parse(savedCredentials);
+                                  setPublicKey(parsed.publicKey);
+                                  setAssistantId(parsed.assistantId);
+                                  setPhoneNumberId(parsed.phoneNumberId || '');
+                                  
+                                  // Recarregar analysisPlan
+                                  if (parsed.analysisPlan) {
+                                    setSummaryPrompt(parsed.analysisPlan.summaryPrompt || '');
+                                    setStructuredDataPrompt(parsed.analysisPlan.structuredDataPrompt || '');
+                                    setStructuredDataSchema(parsed.analysisPlan.structuredDataSchema ? JSON.stringify(parsed.analysisPlan.structuredDataSchema, null, 2) : '');
+                                    setSuccessEvaluationPrompt(parsed.analysisPlan.successEvaluationPrompt || '');
+                                    setSuccessEvaluationRubric(parsed.analysisPlan.successEvaluationRubric || 'NumericScale');
+                                  } else {
+                                    // Limpar campos se não houver analysisPlan salvo
+                                    setSummaryPrompt('');
+                                    setStructuredDataPrompt('');
+                                    setStructuredDataSchema('');
+                                    setSuccessEvaluationPrompt('');
+                                    setSuccessEvaluationRubric('NumericScale');
+                                  }
+                                }
+                                setIsEditingCredentials(false);
+                              }}
+                              variant="outline"
+                            >
+                              Cancelar
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {hasStoredCredentials && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            Editando credenciais salvas
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      // Modo de visualização: mostrar Iniciar, Editar e Limpar
+                      <>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={startCall}
+                            disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
+                            className="flex-1 bg-gradient-vapi hover:opacity-90"
+                          >
+                            {isConnecting ? (
+                              <>Conectando...</>
+                            ) : (
+                              <>
+                                <Phone className="mr-2 h-4 w-4" />
+                                Iniciar Chamada
+                              </>
+                            )}
+                          </Button>
+                          
+                          {hasStoredCredentials && (
+                            <>
+                              <Button
+                                onClick={() => setIsEditingCredentials(true)}
+                                variant="outline"
+                                size="icon"
+                                title="Editar configurações"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              
+                              <Button
+                                onClick={clearCredentials}
+                                variant="outline"
+                                size="icon"
+                                title="Limpar configurações"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                        
+                        {hasStoredCredentials && (
+                          <p className="text-xs text-success text-center flex items-center justify-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Credenciais configuradas
+                          </p>
+                        )}
+                      </>
+                    )}
+
                     {/* Configurações Avançadas - Analysis Plan */}
                     <Collapsible
                       open={showAdvancedConfig} 
@@ -1550,130 +1657,6 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         💡 Dica: Use o botão "Usar Schema de Sentimento" para ter um schema pré-configurado.
                       </AlertDescription>
                     </Alert>
-
-                    {isEditingCredentials ? (
-                      // Modo de edição: mostrar Salvar e Cancelar
-                      <>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={saveCredentials}
-                            disabled={!publicKey.trim() || !assistantId.trim()}
-                            className="flex-1 bg-primary hover:bg-primary/90"
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Salvar Configurações
-                          </Button>
-                          
-                          {hasStoredCredentials && (
-                            <Button
-                              onClick={() => {
-                                // Recarregar credenciais originais e analysisPlan
-                                const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
-                                if (savedCredentials) {
-                                  const parsed = JSON.parse(savedCredentials);
-                                  setPublicKey(parsed.publicKey);
-                                  setAssistantId(parsed.assistantId);
-                                  setPhoneNumberId(parsed.phoneNumberId || '');
-                                  
-                                  // Recarregar analysisPlan
-                                  if (parsed.analysisPlan) {
-                                    setSummaryPrompt(parsed.analysisPlan.summaryPrompt || '');
-                                    setStructuredDataPrompt(parsed.analysisPlan.structuredDataPrompt || '');
-                                    setStructuredDataSchema(parsed.analysisPlan.structuredDataSchema ? JSON.stringify(parsed.analysisPlan.structuredDataSchema, null, 2) : '');
-                                    setSuccessEvaluationPrompt(parsed.analysisPlan.successEvaluationPrompt || '');
-                                    setSuccessEvaluationRubric(parsed.analysisPlan.successEvaluationRubric || 'NumericScale');
-                                  } else {
-                                    // Limpar campos se não houver analysisPlan salvo
-                                    setSummaryPrompt('');
-                                    setStructuredDataPrompt('');
-                                    setStructuredDataSchema('');
-                                    setSuccessEvaluationPrompt('');
-                                    setSuccessEvaluationRubric('NumericScale');
-                                  }
-                                }
-                                setIsEditingCredentials(false);
-                              }}
-                              variant="outline"
-                            >
-                              Cancelar
-                            </Button>
-                          )}
-                        </div>
-                        
-                        {hasStoredCredentials && (
-                          <p className="text-xs text-muted-foreground text-center">
-                            Editando credenciais salvas
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      // Modo de visualização: mostrar Iniciar, Editar e Limpar
-                      <>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={startCall}
-                            disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
-                            className="flex-1 bg-gradient-vapi hover:opacity-90"
-                          >
-                            {isConnecting ? (
-                              <>Conectando...</>
-                            ) : (
-                              <>
-                                <Phone className="mr-2 h-4 w-4" />
-                                Iniciar Chamada
-                              </>
-                            )}
-                          </Button>
-                          
-                          {hasStoredCredentials && (
-                            <>
-                              <Button
-                                onClick={() => setIsEditingCredentials(true)}
-                                variant="outline"
-                                size="icon"
-                                title="Editar configurações"
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              
-                              <Button
-                                onClick={() => {
-                                  localStorage.removeItem(VAPI_STORAGE_KEY);
-                                  localStorage.removeItem(WEBHOOK_CONFIG_KEY);
-                                  setHasStoredCredentials(false);
-                                  setPublicKey('');
-                                  setAssistantId('');
-                                  setPhoneNumberId('');
-                                  setSummaryPrompt('');
-                                  setStructuredDataPrompt('');
-                                  setStructuredDataSchema('');
-                                  setSuccessEvaluationPrompt('');
-                                  setSuccessEvaluationRubric('NumericScale');
-                                  setWebhookUrl('');
-                                  setWebhookHeaders('{}');
-                                  toast({
-                                    title: 'Configurações removidas',
-                                    description: 'Todas as credenciais foram apagadas',
-                                  });
-                                }}
-                                variant="outline"
-                                size="icon"
-                                title="Limpar configurações"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                        
-                        {hasStoredCredentials && (
-                          <p className="text-xs text-success text-center flex items-center justify-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            Credenciais configuradas
-                          </p>
-                        )}
-                      </>
-                    )}
                   </div>
                 )}
               </div>
