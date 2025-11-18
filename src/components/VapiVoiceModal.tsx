@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Vapi from '@vapi-ai/web';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCallLogs } from '@/hooks/useCallLogs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Mic, MicOff, Phone, PhoneOff, Trash2, Download, Edit2, Palette, BarChart3, FileText, Database, CheckCircle, Loader2, ChevronDown, Settings, RefreshCw, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import type { OutboundCallConfig } from '@/types/outbound';
 
 const VAPI_STORAGE_KEY = 'vapi_credentials';
 const VAPI_THEME_KEY = 'vapi_theme';
@@ -165,6 +168,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookHeaders, setWebhookHeaders] = useState('{}');
+  
+  // Outbound call states
+  const [activeTab, setActiveTab] = useState<'inbound' | 'outbound'>('inbound');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isOutboundCalling, setIsOutboundCalling] = useState(false);
+  const [outboundCallId, setOutboundCallId] = useState<string | null>(null);
+  const [outboundStatus, setOutboundStatus] = useState<string>('');
+  const outboundPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [useTestEndpoint, setUseTestEndpoint] = useState(false);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
@@ -848,8 +859,172 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setIsConnecting(false);
     setIsSpeaking(false);
     setShowConfig(true);
+    setPhoneNumber('');
+    setIsOutboundCalling(false);
+    setOutboundCallId(null);
+    setOutboundStatus('');
     if (vapi) {
       vapi.stop();
+    }
+    if (outboundPollIntervalRef.current) {
+      clearInterval(outboundPollIntervalRef.current);
+      outboundPollIntervalRef.current = null;
+    }
+  };
+
+  const makeOutboundCall = async () => {
+    if (!phoneNumber.trim()) {
+      toast({
+        title: "Erro",
+        description: "Digite um número de telefone válido",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!publicKey || !assistantId || !phoneNumberId) {
+      toast({
+        title: "Credenciais incompletas",
+        description: "Configure suas credenciais Vapi primeiro",
+        variant: "destructive",
+      });
+      setShowConfig(true);
+      setActiveTab('inbound');
+      return;
+    }
+
+    setIsOutboundCalling(true);
+    setOutboundStatus('Iniciando ligação...');
+
+    try {
+      const config: OutboundCallConfig = {
+        assistantId,
+        phoneNumberId,
+        customer: {
+          number: phoneNumber,
+        },
+      };
+
+      const response = await fetch("https://api.vapi.ai/call", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${publicKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(config),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Falha ao iniciar ligação");
+      }
+
+      const callData = await response.json();
+      setOutboundCallId(callData.id);
+      setOutboundStatus('Chamando...');
+
+      // Save to call logs
+      await saveCallLog({
+        id: callData.id,
+        status: 'queued',
+        customer: {
+          number: phoneNumber,
+        },
+      });
+
+      toast({
+        title: "Ligação iniciada",
+        description: `Chamando ${phoneNumber}...`,
+      });
+
+      // Start polling for status
+      monitorOutboundCall(callData.id);
+    } catch (error) {
+      console.error('Error making outbound call:', error);
+      setIsOutboundCalling(false);
+      setOutboundStatus('');
+      toast({
+        title: "Erro ao fazer ligação",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const monitorOutboundCall = async (callId: string) => {
+    if (outboundPollIntervalRef.current) {
+      clearInterval(outboundPollIntervalRef.current);
+    }
+
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+          headers: {
+            Authorization: `Bearer ${publicKey}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Falha ao obter status da ligação");
+        }
+
+        const callData = await response.json();
+        
+        // Update UI status
+        const statusMap: Record<string, string> = {
+          queued: 'Na fila...',
+          ringing: 'Chamando...',
+          'in-progress': 'Em andamento',
+          forwarding: 'Encaminhando...',
+          ended: 'Finalizada',
+        };
+        
+        setOutboundStatus(statusMap[callData.status] || callData.status);
+
+        // Update call log
+        await updateCallLog(callData.id, {
+          status: callData.status,
+          startedAt: callData.startedAt ? new Date(callData.startedAt) : undefined,
+          endedAt: callData.endedAt ? new Date(callData.endedAt) : undefined,
+          duration: callData.duration,
+          analysis: callData.analysis,
+          recordingUrl: callData.recordingUrl,
+        });
+
+        // Stop polling if call ended
+        if (callData.status === 'ended') {
+          setIsOutboundCalling(false);
+          if (outboundPollIntervalRef.current) {
+            clearInterval(outboundPollIntervalRef.current);
+            outboundPollIntervalRef.current = null;
+          }
+          
+          toast({
+            title: "Ligação finalizada",
+            description: callData.duration 
+              ? `Duração: ${Math.floor(callData.duration / 60)}min ${callData.duration % 60}s`
+              : undefined,
+          });
+        }
+      } catch (error) {
+        console.error('Error monitoring call:', error);
+      }
+    };
+
+    // Initial poll
+    await pollStatus();
+
+    // Poll every 3 seconds
+    outboundPollIntervalRef.current = setInterval(pollStatus, 3000);
+  };
+
+  const cancelOutboundCall = () => {
+    setIsOutboundCalling(false);
+    setOutboundCallId(null);
+    setOutboundStatus('');
+    if (outboundPollIntervalRef.current) {
+      clearInterval(outboundPollIntervalRef.current);
+      outboundPollIntervalRef.current = null;
     }
   };
 
@@ -890,7 +1065,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       <DialogContent className="sm:max-w-[600px] h-[700px] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center justify-between">
-            <span>Assistente de Voz Vapi</span>
+            <span>Chamadas de Voz Vapi</span>
             <div className="flex items-center gap-2">
               {isCallActive && (
                 <span className="text-sm font-normal text-muted-foreground">
@@ -947,6 +1122,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           )}
         </DialogHeader>
 
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'inbound' | 'outbound')} className="flex-1 flex flex-col">
+          <div className="px-6 pt-2">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="inbound">Chamada de Voz</TabsTrigger>
+              <TabsTrigger value="outbound">Ligar para Número</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="inbound" className="flex-1 flex flex-col mt-0">
         <div className="flex-1 flex flex-col overflow-hidden">
           {showConfig ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
@@ -1560,6 +1744,90 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
             </>
           )}
         </div>
+          </TabsContent>
+
+          <TabsContent value="outbound" className="flex-1 flex flex-col mt-0 p-6">
+            {!publicKey || !assistantId || !phoneNumberId ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Credenciais necessárias</AlertTitle>
+                <AlertDescription>
+                  Configure suas credenciais Vapi na aba "Chamada de Voz" primeiro.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="flex-1 flex flex-col gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Número de Telefone
+                    </label>
+                    <Input
+                      type="tel"
+                      placeholder="+5511999999999"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      disabled={isOutboundCalling}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Digite o número com código do país (ex: +55 11 99999-9999)
+                    </p>
+                  </div>
+
+                  {outboundStatus && (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2">
+                        {isOutboundCalling && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                        <span className="font-medium">{outboundStatus}</span>
+                      </div>
+                      {outboundCallId && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ID: {outboundCallId}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    {!isOutboundCalling ? (
+                      <Button
+                        onClick={makeOutboundCall}
+                        className="flex-1"
+                        size="lg"
+                      >
+                        <Phone className="h-4 w-4 mr-2" />
+                        Fazer Ligação
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={cancelOutboundCall}
+                        variant="destructive"
+                        className="flex-1"
+                        size="lg"
+                      >
+                        <PhoneOff className="h-4 w-4 mr-2" />
+                        Cancelar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 mt-auto">
+                  <h3 className="font-semibold mb-2">Como funciona?</h3>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Digite o número de telefone com código do país</li>
+                    <li>• Clique em "Fazer Ligação" para iniciar</li>
+                    <li>• Acompanhe o status em tempo real</li>
+                    <li>• O histórico será salvo automaticamente em Call Logs</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
