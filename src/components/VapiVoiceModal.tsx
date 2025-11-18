@@ -622,6 +622,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   };
 
   const startCall = () => {
+    // Se não tiver credenciais salvas ainda, salvar primeiro
+    if (!hasStoredCredentials) {
+      saveCredentials();
+      // A função saveCredentials já valida e mostra toasts
+      // Após salvar, o usuário pode clicar novamente para iniciar a chamada
+      return;
+    }
+
     setIsConnecting(true);
     
     // Construir analysisPlan se houver configurações
@@ -643,27 +651,6 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
     if (successEvaluationPrompt.trim()) analysisPlan.successEvaluationPrompt = successEvaluationPrompt.trim();
     if (successEvaluationRubric) analysisPlan.successEvaluationRubric = successEvaluationRubric;
-    
-    // Salvar credenciais e analysisPlan no localStorage
-    try {
-      localStorage.setItem(VAPI_STORAGE_KEY, JSON.stringify({
-        publicKey,
-        assistantId,
-        phoneNumberId,
-        analysisPlan: Object.keys(analysisPlan).length > 0 ? analysisPlan : undefined
-      }));
-
-      if (webhookUrl) {
-        const config = {
-          url: webhookUrl,
-          lastTested: new Date().toISOString(),
-          status: webhookStatus
-        };
-        localStorage.setItem(WEBHOOK_CONFIG_KEY, JSON.stringify(config));
-      }
-    } catch (error) {
-      console.error('Error saving credentials:', error);
-    }
     
     let vapiInstance = vapi;
     if (!vapiInstance) {
@@ -694,6 +681,70 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
   };
 
+  const saveCredentials = () => {
+    if (!publicKey.trim() || !assistantId.trim()) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha Public Key e Assistant ID',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Construir analysisPlan apenas com campos preenchidos
+    const analysisPlan: AnalysisPlan = {};
+    if (summaryPrompt.trim()) analysisPlan.summaryPrompt = summaryPrompt.trim();
+    if (structuredDataPrompt.trim()) analysisPlan.structuredDataPrompt = structuredDataPrompt.trim();
+    if (structuredDataSchema.trim()) {
+      try {
+        analysisPlan.structuredDataSchema = JSON.parse(structuredDataSchema);
+      } catch (e) {
+        toast({
+          title: 'Erro no Schema JSON',
+          description: 'O schema de dados estruturados não é um JSON válido',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    if (successEvaluationPrompt.trim()) analysisPlan.successEvaluationPrompt = successEvaluationPrompt.trim();
+    if (successEvaluationRubric) analysisPlan.successEvaluationRubric = successEvaluationRubric;
+
+    // Salvar credenciais e analysisPlan no localStorage
+    try {
+      localStorage.setItem(VAPI_STORAGE_KEY, JSON.stringify({
+        publicKey,
+        assistantId,
+        phoneNumberId,
+        analysisPlan: Object.keys(analysisPlan).length > 0 ? analysisPlan : undefined
+      }));
+
+      if (webhookUrl) {
+        const config = {
+          url: webhookUrl,
+          lastTested: new Date().toISOString(),
+          status: webhookStatus
+        };
+        localStorage.setItem(WEBHOOK_CONFIG_KEY, JSON.stringify(config));
+      }
+
+      setHasStoredCredentials(true);
+      setIsEditingCredentials(false);
+      
+      toast({
+        title: 'Configurações salvas',
+        description: 'Suas credenciais foram salvas com sucesso',
+      });
+    } catch (error) {
+      console.error('Error saving credentials:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível salvar as credenciais',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const endCall = () => {
     if (vapi) {
       vapi.stop();
@@ -709,11 +760,12 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
   const clearCredentials = () => {
     localStorage.removeItem(VAPI_STORAGE_KEY);
+    localStorage.removeItem(WEBHOOK_CONFIG_KEY);
     setPublicKey('');
     setAssistantId('');
     setPhoneNumberId('');
     setHasStoredCredentials(false);
-    setIsEditingCredentials(true);
+    setIsEditingCredentials(false);
     
     // Limpar também as configurações do analysisPlan
     setSummaryPrompt('');
@@ -722,9 +774,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setSuccessEvaluationPrompt('');
     setSuccessEvaluationRubric('NumericScale');
     
+    // Limpar webhook
+    setWebhookUrl('');
+    setWebhookHeaders('{}');
+    setWebhookStatus('unknown');
+    
     toast({
-      title: 'Credenciais removidas',
-      description: 'As credenciais salvas foram apagadas',
+      title: 'Configurações removidas',
+      description: 'Todas as credenciais foram apagadas',
     });
   };
 
@@ -1217,8 +1274,9 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       </Button>
                     </div>
                     
-                    <p className="text-xs text-muted-foreground text-center">
-                      ✓ Credenciais configuradas e seguras
+                    <p className="text-xs text-success text-center flex items-center justify-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Credenciais configuradas
                     </p>
                     
                     {(summaryPrompt || structuredDataPrompt || structuredDataSchema || successEvaluationPrompt) && (
@@ -1493,62 +1551,128 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       </AlertDescription>
                     </Alert>
 
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={startCall}
-                        disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
-                        className="flex-1 bg-gradient-vapi hover:opacity-90"
-                      >
-                        {isConnecting ? (
-                          <>Conectando...</>
-                        ) : (
-                          <>
-                            <Phone className="mr-2 h-4 w-4" />
-                            Iniciar Chamada
-                          </>
+                    {isEditingCredentials ? (
+                      // Modo de edição: mostrar Salvar e Cancelar
+                      <>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={saveCredentials}
+                            disabled={!publicKey.trim() || !assistantId.trim()}
+                            className="flex-1 bg-primary hover:bg-primary/90"
+                          >
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Salvar Configurações
+                          </Button>
+                          
+                          {hasStoredCredentials && (
+                            <Button
+                              onClick={() => {
+                                // Recarregar credenciais originais e analysisPlan
+                                const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
+                                if (savedCredentials) {
+                                  const parsed = JSON.parse(savedCredentials);
+                                  setPublicKey(parsed.publicKey);
+                                  setAssistantId(parsed.assistantId);
+                                  setPhoneNumberId(parsed.phoneNumberId || '');
+                                  
+                                  // Recarregar analysisPlan
+                                  if (parsed.analysisPlan) {
+                                    setSummaryPrompt(parsed.analysisPlan.summaryPrompt || '');
+                                    setStructuredDataPrompt(parsed.analysisPlan.structuredDataPrompt || '');
+                                    setStructuredDataSchema(parsed.analysisPlan.structuredDataSchema ? JSON.stringify(parsed.analysisPlan.structuredDataSchema, null, 2) : '');
+                                    setSuccessEvaluationPrompt(parsed.analysisPlan.successEvaluationPrompt || '');
+                                    setSuccessEvaluationRubric(parsed.analysisPlan.successEvaluationRubric || 'NumericScale');
+                                  } else {
+                                    // Limpar campos se não houver analysisPlan salvo
+                                    setSummaryPrompt('');
+                                    setStructuredDataPrompt('');
+                                    setStructuredDataSchema('');
+                                    setSuccessEvaluationPrompt('');
+                                    setSuccessEvaluationRubric('NumericScale');
+                                  }
+                                }
+                                setIsEditingCredentials(false);
+                              }}
+                              variant="outline"
+                            >
+                              Cancelar
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {hasStoredCredentials && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            Editando credenciais salvas
+                          </p>
                         )}
-                      </Button>
-                      
-                      {hasStoredCredentials && (
-                        <Button
-                          onClick={() => {
-                            // Recarregar credenciais originais e analysisPlan
-                            const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
-                            if (savedCredentials) {
-                              const parsed = JSON.parse(savedCredentials);
-                              setPublicKey(parsed.publicKey);
-                              setAssistantId(parsed.assistantId);
-                              setPhoneNumberId(parsed.phoneNumberId || '');
+                      </>
+                    ) : (
+                      // Modo de visualização: mostrar Iniciar, Editar e Limpar
+                      <>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={startCall}
+                            disabled={isConnecting || !publicKey.trim() || !assistantId.trim()}
+                            className="flex-1 bg-gradient-vapi hover:opacity-90"
+                          >
+                            {isConnecting ? (
+                              <>Conectando...</>
+                            ) : (
+                              <>
+                                <Phone className="mr-2 h-4 w-4" />
+                                Iniciar Chamada
+                              </>
+                            )}
+                          </Button>
+                          
+                          {hasStoredCredentials && (
+                            <>
+                              <Button
+                                onClick={() => setIsEditingCredentials(true)}
+                                variant="outline"
+                                size="icon"
+                                title="Editar configurações"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
                               
-                              // Recarregar analysisPlan
-                              if (parsed.analysisPlan) {
-                                setSummaryPrompt(parsed.analysisPlan.summaryPrompt || '');
-                                setStructuredDataPrompt(parsed.analysisPlan.structuredDataPrompt || '');
-                                setStructuredDataSchema(parsed.analysisPlan.structuredDataSchema ? JSON.stringify(parsed.analysisPlan.structuredDataSchema, null, 2) : '');
-                                setSuccessEvaluationPrompt(parsed.analysisPlan.successEvaluationPrompt || '');
-                                setSuccessEvaluationRubric(parsed.analysisPlan.successEvaluationRubric || 'NumericScale');
-                              } else {
-                                // Limpar campos se não houver analysisPlan salvo
-                                setSummaryPrompt('');
-                                setStructuredDataPrompt('');
-                                setStructuredDataSchema('');
-                                setSuccessEvaluationPrompt('');
-                                setSuccessEvaluationRubric('NumericScale');
-                              }
-                            }
-                            setIsEditingCredentials(false);
-                          }}
-                          variant="outline"
-                        >
-                          Cancelar
-                        </Button>
-                      )}
-                    </div>
-                    
-                    {hasStoredCredentials && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        Editando credenciais salvas
-                      </p>
+                              <Button
+                                onClick={() => {
+                                  localStorage.removeItem(VAPI_STORAGE_KEY);
+                                  localStorage.removeItem(WEBHOOK_CONFIG_KEY);
+                                  setHasStoredCredentials(false);
+                                  setPublicKey('');
+                                  setAssistantId('');
+                                  setPhoneNumberId('');
+                                  setSummaryPrompt('');
+                                  setStructuredDataPrompt('');
+                                  setStructuredDataSchema('');
+                                  setSuccessEvaluationPrompt('');
+                                  setSuccessEvaluationRubric('NumericScale');
+                                  setWebhookUrl('');
+                                  setWebhookHeaders('{}');
+                                  toast({
+                                    title: 'Configurações removidas',
+                                    description: 'Todas as credenciais foram apagadas',
+                                  });
+                                }}
+                                variant="outline"
+                                size="icon"
+                                title="Limpar configurações"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                        
+                        {hasStoredCredentials && (
+                          <p className="text-xs text-success text-center flex items-center justify-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Credenciais configuradas
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
