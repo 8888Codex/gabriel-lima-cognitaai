@@ -116,7 +116,7 @@ const ContactUploadForm = () => {
   };
 
   // Test webhook before starting campaign
-  const testWebhookConnection = async (webhookUrl: string, customHeaders: any): Promise<boolean> => {
+  const testWebhookConnection = async (webhookUrl: string, customHeaders: any): Promise<{success: boolean, errorDetails?: string}> => {
     try {
       console.log("🧪 Testando conexão com webhook:", webhookUrl);
       
@@ -160,23 +160,39 @@ const ContactUploadForm = () => {
 
       console.log("📥 Resposta do teste:", response.status, responseData);
 
-      // Check if response is not ok OR if the body contains a 404 from webhook
+      // Check if response is not ok
       if (!response.ok) {
         console.error("❌ Teste falhou - Response not OK:", response.status);
-        return false;
+        return { success: false, errorDetails: `Erro HTTP ${response.status}` };
       }
 
       // Even if proxy returns 200, check if webhook itself returned error
       if (responseData && !responseData.success) {
         console.error("❌ Teste falhou - Webhook retornou erro:", responseData.status, responseData.body);
-        return false;
+        
+        // Check for n8n specific 404 error
+        if (responseData.status === 404 && responseData.body?.message?.includes('not registered')) {
+          const webhookPath = webhookUrl.split('/webhook/')[1] || 'desconhecido';
+          return { 
+            success: false, 
+            errorDetails: `n8n_404:${webhookPath}` 
+          };
+        }
+        
+        return { 
+          success: false, 
+          errorDetails: `Erro ${responseData.status}: ${responseData.body?.message || 'Desconhecido'}` 
+        };
       }
 
       console.log("✅ Teste do webhook bem-sucedido");
-      return true;
+      return { success: true };
     } catch (error) {
       console.error("❌ Erro ao testar webhook:", error);
-      return false;
+      return { 
+        success: false, 
+        errorDetails: error instanceof Error ? error.message : 'Erro de conexão' 
+      };
     }
   };
 
@@ -212,12 +228,27 @@ const ContactUploadForm = () => {
       description: "Testando conexão com o webhook de produção",
     });
 
-    const isWebhookOnline = await testWebhookConnection(webhookUrl, webhookHeaders);
+    const webhookTestResult = await testWebhookConnection(webhookUrl, webhookHeaders);
     setIsTestingWebhook(false);
 
-    if (!isWebhookOnline) {
-      // Webhook is offline, suggest fallback
-      setWebhookTestError(`O webhook de produção (${webhookUrl}) não está acessível. Isso pode ocorrer se o workflow do n8n não estiver ativo.`);
+    if (!webhookTestResult.success) {
+      // Webhook is offline, create specific error message
+      let errorMessage = `O webhook de produção (${webhookUrl}) não está acessível.`;
+      
+      if (webhookTestResult.errorDetails?.startsWith('n8n_404:')) {
+        const workflowName = webhookTestResult.errorDetails.split(':')[1];
+        errorMessage = `❌ O workflow "${workflowName}" não está ativo no n8n.\n\n` +
+          `📋 Como resolver:\n` +
+          `1. Abra o n8n (${webhookUrl.split('/webhook')[0]})\n` +
+          `2. Localize o workflow "${workflowName}"\n` +
+          `3. ATIVE o workflow (toggle no canto superior direito)\n` +
+          `4. Verifique se o webhook está configurado como POST\n\n` +
+          `💡 O workflow precisa estar ATIVO, não apenas salvo.`;
+      } else if (webhookTestResult.errorDetails) {
+        errorMessage += `\n\nDetalhes: ${webhookTestResult.errorDetails}`;
+      }
+      
+      setWebhookTestError(errorMessage);
       setShowWebhookFallbackDialog(true);
       setPendingSubmit(true);
       return;
@@ -667,7 +698,7 @@ const ContactUploadForm = () => {
               Webhook de Produção Offline
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
-              <p className="text-sm">{webhookTestError}</p>
+              <div className="text-sm whitespace-pre-line">{webhookTestError}</div>
               
               <div className="bg-muted/50 p-3 rounded-lg space-y-2">
                 <p className="text-sm font-medium text-foreground">O que você deseja fazer?</p>
