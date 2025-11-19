@@ -1066,9 +1066,29 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
 
     setIsOutboundCalling(true);
-    setOutboundStatus('Iniciando ligação...');
+    setOutboundStatus('Validando configuração...');
 
     try {
+      // Validate assistant exists before making the call
+      const { data: validationData, error: validationError } = await supabase.functions.invoke('make-vapi-call', {
+        body: { assistantId },
+      });
+
+      if (validationError) {
+        throw new Error('Erro ao validar assistant ID');
+      }
+
+      if (validationData?.error) {
+        throw new Error(validationData.error);
+      }
+
+      if (!validationData?.exists) {
+        throw new Error(`❌ Assistant ID inválido. O ID "${assistantId}" não existe na sua conta Vapi. Verifique em https://dashboard.vapi.ai`);
+      }
+
+      console.log('✅ Assistant validated:', validationData.assistant?.name);
+      setOutboundStatus('Iniciando ligação...');
+
       // Chamar edge function ao invés de Vapi diretamente
       const { data, error } = await supabase.functions.invoke('make-vapi-call', {
         body: {

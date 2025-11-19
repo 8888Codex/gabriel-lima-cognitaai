@@ -10,10 +10,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // GET request - health check or call status
+  // GET request - health check, call status, or assistant validation
   if (req.method === 'GET') {
     const url = new URL(req.url);
     const callId = url.searchParams.get('callId');
+    const assistantId = url.searchParams.get('assistantId');
     
     const VAPI_PRIVATE_KEY = Deno.env.get('VAPI_PRIVATE_KEY');
     
@@ -28,6 +29,75 @@ serve(async (req) => {
           status: 500,
         }
       );
+    }
+
+    // If assistantId provided, validate it exists
+    if (assistantId) {
+      console.log('🔍 Validating assistant:', assistantId);
+      
+      try {
+        const response = await fetch(`https://api.vapi.ai/assistant/${assistantId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${VAPI_PRIVATE_KEY}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            return new Response(
+              JSON.stringify({ 
+                exists: false,
+                error: `Assistant ID ${assistantId} não existe na sua conta Vapi.`,
+              }),
+              {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 200,
+              }
+            );
+          }
+          
+          const errorText = await response.text();
+          console.error('❌ Error validating assistant:', response.status, errorText);
+          return new Response(
+            JSON.stringify({ 
+              error: `Erro ao validar assistant: ${response.status}`,
+            }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: response.status,
+            }
+          );
+        }
+
+        const assistantData = await response.json();
+        console.log('✅ Assistant exists:', assistantData.name);
+        
+        return new Response(
+          JSON.stringify({ 
+            exists: true,
+            assistant: {
+              id: assistantData.id,
+              name: assistantData.name,
+            },
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      } catch (error) {
+        console.error('💥 Error validating assistant:', error);
+        return new Response(
+          JSON.stringify({ 
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          }
+        );
+      }
     }
 
     // If callId provided, get call status
