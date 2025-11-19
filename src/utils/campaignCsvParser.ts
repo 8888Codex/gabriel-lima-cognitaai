@@ -3,6 +3,7 @@ export interface CSVContact {
   customer_phone: string;
   customer_email?: string;
   priority?: number;
+  initial_message?: string;
 }
 
 export interface ParseResult {
@@ -41,6 +42,10 @@ export const parseCSV = (csvText: string): ParseResult => {
   const priorityIndex = headers.findIndex(h => 
     h.includes('priority') || h.includes('prioridade')
   );
+  
+  const messageIndex = headers.findIndex(h => 
+    h.includes('message') || h.includes('mensagem') || h.includes('initial')
+  );
 
   // Processar linhas de dados
   const contacts: CSVContact[] = [];
@@ -71,6 +76,7 @@ export const parseCSV = (csvText: string): ParseResult => {
       customer_name: nameIndex !== -1 ? values[nameIndex] : undefined,
       customer_email: email,
       priority: priorityIndex !== -1 ? parseInt(values[priorityIndex]) || 0 : 0,
+      initial_message: messageIndex !== -1 ? values[messageIndex] : undefined,
     });
   }
 
@@ -87,10 +93,10 @@ const isValidEmail = (email: string): boolean => {
 };
 
 export const generateCSVTemplate = (): string => {
-  return `name,phone,email,priority
-João Silva,11999887766,joao@example.com,0
-Maria Santos,11988776655,maria@example.com,1
-Pedro Costa,11977665544,pedro@example.com,0`;
+  return `name,phone,email,priority,initial_message
+João Silva,11999887766,joao@example.com,0,"Olá João! Temos uma oportunidade especial para você..."
+Maria Santos,11988776655,maria@example.com,1,"Oi Maria! Vi seu interesse em nossos serviços..."
+Pedro Costa,11977665544,pedro@example.com,0,"Pedro, preparamos uma proposta exclusiva para você!"`;
 };
 
 export const downloadCSVTemplate = () => {

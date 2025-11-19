@@ -16,15 +16,18 @@ export interface Campaign {
   completed_calls: number;
   started_at?: string;
   completed_at?: string;
+  assistant_id?: string;
+  phone_number_id?: string;
 }
 
 export interface QueueContact {
   customer_name?: string;
   customer_phone: string;
   customer_email?: string;
-  assistant_id: string;
-  phone_number_id: string;
+  assistant_id?: string;
+  phone_number_id?: string;
   priority?: number;
+  initial_message?: string;
 }
 
 export const useCampaigns = () => {
@@ -44,6 +47,8 @@ export const useCampaigns = () => {
           start_time: campaign.start_time,
           end_time: campaign.end_time,
           status: campaign.status,
+          assistant_id: campaign.assistant_id,
+          phone_number_id: campaign.phone_number_id,
         })
         .select()
         .single();
@@ -147,11 +152,26 @@ export const useCampaigns = () => {
   const addContactsToQueue = async (campaignId: string, contacts: QueueContact[]) => {
     setIsLoading(true);
     try {
-      // Adicionar campaign_id a cada contato
+      // Buscar credenciais da campanha
+      const { data: campaign } = await supabase
+        .from('call_campaigns')
+        .select('assistant_id, phone_number_id, total_contacts')
+        .eq('id', campaignId)
+        .single();
+
+      if (!campaign) throw new Error('Campanha não encontrada');
+
+      // Adicionar campaign_id e credenciais aos contatos
       const queueItems = contacts.map(contact => ({
-        ...contact,
+        customer_name: contact.customer_name,
+        customer_phone: contact.customer_phone,
+        customer_email: contact.customer_email,
+        assistant_id: contact.assistant_id || campaign.assistant_id,
+        phone_number_id: contact.phone_number_id || campaign.phone_number_id,
+        priority: contact.priority || 0,
         campaign_id: campaignId,
         status: 'pending',
+        initial_message: contact.initial_message,
       }));
 
       const { data, error } = await supabase
@@ -161,21 +181,13 @@ export const useCampaigns = () => {
 
       if (error) throw error;
 
-      // Buscar campanha atual e incrementar total_contacts
-      const { data: campaign } = await supabase
+      // Incrementar total_contacts
+      await supabase
         .from('call_campaigns')
-        .select('total_contacts')
-        .eq('id', campaignId)
-        .single();
-
-      if (campaign) {
-        await supabase
-          .from('call_campaigns')
-          .update({ 
-            total_contacts: campaign.total_contacts + contacts.length
-          })
-          .eq('id', campaignId);
-      }
+        .update({ 
+          total_contacts: campaign.total_contacts + contacts.length
+        })
+        .eq('id', campaignId);
 
       toast({
         title: "Contatos adicionados!",
