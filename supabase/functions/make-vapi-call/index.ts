@@ -14,7 +14,8 @@ serve(async (req) => {
   if (req.method === 'GET') {
     const url = new URL(req.url);
     const callId = url.searchParams.get('callId');
-    const assistantId = url.searchParams.get('assistantId');
+    const assistantIdRaw = url.searchParams.get('assistantId');
+    const assistantId = assistantIdRaw?.trim(); // Remove espaços em branco
     
     const VAPI_PRIVATE_KEY = Deno.env.get('VAPI_PRIVATE_KEY');
     
