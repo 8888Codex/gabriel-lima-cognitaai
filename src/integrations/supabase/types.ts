@@ -66,6 +66,7 @@ export type Database = {
       }
       call_campaigns: {
         Row: {
+          assistant_id: string | null
           batch_size: number | null
           completed_at: string | null
           completed_calls: number | null
@@ -75,12 +76,14 @@ export type Database = {
           id: string
           interval_minutes: number | null
           name: string
+          phone_number_id: string | null
           start_time: string | null
           started_at: string | null
           status: string | null
           total_contacts: number | null
         }
         Insert: {
+          assistant_id?: string | null
           batch_size?: number | null
           completed_at?: string | null
           completed_calls?: number | null
@@ -90,12 +93,14 @@ export type Database = {
           id?: string
           interval_minutes?: number | null
           name: string
+          phone_number_id?: string | null
           start_time?: string | null
           started_at?: string | null
           status?: string | null
           total_contacts?: number | null
         }
         Update: {
+          assistant_id?: string | null
           batch_size?: number | null
           completed_at?: string | null
           completed_calls?: number | null
@@ -105,6 +110,7 @@ export type Database = {
           id?: string
           interval_minutes?: number | null
           name?: string
+          phone_number_id?: string | null
           start_time?: string | null
           started_at?: string | null
           status?: string | null
@@ -192,7 +198,7 @@ export type Database = {
       }
       call_queue: {
         Row: {
-          assistant_id: string
+          assistant_id: string | null
           call_log_id: string | null
           campaign_id: string | null
           completed_at: string | null
@@ -203,15 +209,16 @@ export type Database = {
           dispatched_at: string | null
           error_message: string | null
           id: string
+          initial_message: string | null
           max_retries: number | null
-          phone_number_id: string
+          phone_number_id: string | null
           priority: number | null
           retry_count: number | null
           scheduled_for: string | null
           status: string | null
         }
         Insert: {
-          assistant_id: string
+          assistant_id?: string | null
           call_log_id?: string | null
           campaign_id?: string | null
           completed_at?: string | null
@@ -222,15 +229,16 @@ export type Database = {
           dispatched_at?: string | null
           error_message?: string | null
           id?: string
+          initial_message?: string | null
           max_retries?: number | null
-          phone_number_id: string
+          phone_number_id?: string | null
           priority?: number | null
           retry_count?: number | null
           scheduled_for?: string | null
           status?: string | null
         }
         Update: {
-          assistant_id?: string
+          assistant_id?: string | null
           call_log_id?: string | null
           campaign_id?: string | null
           completed_at?: string | null
@@ -241,8 +249,9 @@ export type Database = {
           dispatched_at?: string | null
           error_message?: string | null
           id?: string
+          initial_message?: string | null
           max_retries?: number | null
-          phone_number_id?: string
+          phone_number_id?: string | null
           priority?: number | null
           retry_count?: number | null
           scheduled_for?: string | null

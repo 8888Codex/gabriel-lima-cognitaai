@@ -140,21 +140,29 @@ export const CampaignImportDialog = ({ open, onOpenChange, onImport }: CampaignI
                   {contacts.slice(0, 10).map((contact, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm"
+                      className="p-2 bg-muted/50 rounded text-sm space-y-1"
                     >
-                      <div>
-                        <p className="font-medium">
-                          {contact.customer_name || 'Sem nome'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {contact.customer_phone}
-                          {contact.customer_email && ` • ${contact.customer_email}`}
-                        </p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">
+                            {contact.customer_name || 'Sem nome'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {contact.customer_phone}
+                            {contact.customer_email && ` • ${contact.customer_email}`}
+                          </p>
+                        </div>
+                        {contact.priority !== undefined && contact.priority > 0 && (
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                            Prioridade: {contact.priority}
+                          </span>
+                        )}
                       </div>
-                      {contact.priority !== undefined && contact.priority > 0 && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                          Prioridade: {contact.priority}
-                        </span>
+                      {contact.initial_message && (
+                        <div className="pt-1 mt-1 border-t border-border/50">
+                          <p className="text-xs text-muted-foreground">Mensagem:</p>
+                          <p className="text-xs italic">&ldquo;{contact.initial_message}&rdquo;</p>
+                        </div>
                       )}
                     </div>
                   ))}

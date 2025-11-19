@@ -63,6 +63,8 @@ const Campaigns = () => {
         start_time: formData.start_time,
         end_time: formData.end_time,
         status: 'draft',
+        assistant_id: formData.assistant_id,
+        phone_number_id: formData.phone_number_id,
       });
 
       setShowNewDialog(false);
@@ -87,14 +89,9 @@ const Campaigns = () => {
     if (!selectedCampaign) return;
 
     try {
-      // Adicionar assistant_id e phone_number_id aos contatos
-      const contactsWithConfig = contacts.map(c => ({
-        ...c,
-        assistant_id: formData.assistant_id,
-        phone_number_id: formData.phone_number_id,
-      }));
-
-      await addContactsToQueue(selectedCampaign.id, contactsWithConfig);
+      // Os contatos já vêm com initial_message do CSV
+      // assistant_id e phone_number_id virão da campanha
+      await addContactsToQueue(selectedCampaign.id, contacts);
       loadCampaigns();
       
       // Atualizar stats

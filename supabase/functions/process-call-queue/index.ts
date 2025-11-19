@@ -120,12 +120,17 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              assistantId: item.assistant_id,
-              phoneNumberId: item.phone_number_id,
+              assistantId: item.assistant_id || campaign.assistant_id,
+              phoneNumberId: item.phone_number_id || campaign.phone_number_id,
               customer: {
                 number: item.customer_phone,
                 name: item.customer_name,
               },
+              ...(item.initial_message && {
+                assistantOverrides: {
+                  firstMessage: item.initial_message
+                }
+              })
             }),
           });
 
