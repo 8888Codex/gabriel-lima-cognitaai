@@ -1098,17 +1098,21 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setOutboundStatus('Validando configuração...');
 
     try {
-      // Validate assistant exists before making the call
-      const { data: validationData, error: validationError } = await supabase.functions.invoke('make-vapi-call', {
-        body: { assistantId },
-      });
+      // Validate assistant exists before making the call (using GET request)
+      const validationResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?assistantId=${encodeURIComponent(assistantId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
 
-      if (validationError) {
-        throw new Error('Erro ao validar assistant ID');
-      }
+      const validationData = await validationResponse.json();
 
-      if (validationData?.error) {
-        throw new Error(validationData.error);
+      if (!validationResponse.ok || validationData?.error) {
+        throw new Error(validationData?.error || 'Erro ao validar assistant ID');
       }
 
       if (!validationData?.exists) {
