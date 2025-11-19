@@ -100,6 +100,76 @@ serve(async (req) => {
       }
     }
 
+    // If phoneNumberId provided, validate it exists
+    if (url.searchParams.get('phoneNumberId')) {
+      const phoneNumberId = url.searchParams.get('phoneNumberId');
+      console.log('🔍 Validating phone number:', phoneNumberId);
+      
+      try {
+        const response = await fetch(`https://api.vapi.ai/phone-number/${phoneNumberId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${VAPI_PRIVATE_KEY}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            return new Response(
+              JSON.stringify({ 
+                exists: false,
+                error: `Phone Number ID ${phoneNumberId} não existe na sua conta Vapi.`,
+              }),
+              {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 200,
+              }
+            );
+          }
+          
+          const errorText = await response.text();
+          console.error('❌ Error validating phone number:', response.status, errorText);
+          return new Response(
+            JSON.stringify({ 
+              error: `Erro ao validar phone number: ${response.status}`,
+            }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: response.status,
+            }
+          );
+        }
+
+        const phoneData = await response.json();
+        console.log('✅ Phone Number exists:', phoneData.number);
+        
+        return new Response(
+          JSON.stringify({ 
+            exists: true,
+            phoneNumber: {
+              id: phoneData.id,
+              number: phoneData.number,
+            },
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      } catch (error) {
+        console.error('💥 Error validating phone number:', error);
+        return new Response(
+          JSON.stringify({ 
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          }
+        );
+      }
+    }
+
     // If callId provided, get call status
     if (callId) {
       console.log('📊 Fetching call status for:', callId);
