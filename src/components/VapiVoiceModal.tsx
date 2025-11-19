@@ -171,6 +171,10 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     publicKey: false,
     assistantId: false,
   });
+  const [assistantIdValidation, setAssistantIdValidation] = useState<{
+    status: 'idle' | 'validating' | 'valid' | 'invalid';
+    message?: string;
+  }>({ status: 'idle' });
   const [selectedTheme, setSelectedTheme] = useState<VapiTheme>('blue');
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
@@ -214,6 +218,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const assistantIdValidationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const { saveCallLog, updateCallLog } = useCallLogs();
 
@@ -308,6 +313,68 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       }
     }
   }, [phoneNumberId, hasStoredCredentials, isEditingCredentials]);
+
+  // Validação automática do Assistant ID com debounce
+  useEffect(() => {
+    // Limpar timeout anterior
+    if (assistantIdValidationTimeoutRef.current) {
+      clearTimeout(assistantIdValidationTimeoutRef.current);
+    }
+
+    // Reset se estiver vazio
+    if (!assistantId.trim()) {
+      setAssistantIdValidation({ status: 'idle' });
+      return;
+    }
+
+    // Só validar se estiver editando credenciais
+    if (!isEditingCredentials && hasStoredCredentials) {
+      return;
+    }
+
+    // Debounce de 800ms
+    assistantIdValidationTimeoutRef.current = setTimeout(async () => {
+      setAssistantIdValidation({ status: 'validating', message: 'Validando...' });
+
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?assistantId=${encodeURIComponent(assistantId)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (response.ok && data.valid) {
+          setAssistantIdValidation({ 
+            status: 'valid', 
+            message: `✓ Assistant válido: ${data.assistant?.name || 'Sem nome'}` 
+          });
+        } else {
+          setAssistantIdValidation({ 
+            status: 'invalid', 
+            message: data.error || 'Assistant ID não encontrado na sua conta Vapi' 
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao validar Assistant ID:', error);
+        setAssistantIdValidation({ 
+          status: 'invalid', 
+          message: 'Erro ao validar. Verifique sua conexão.' 
+        });
+      }
+    }, 800);
+
+    return () => {
+      if (assistantIdValidationTimeoutRef.current) {
+        clearTimeout(assistantIdValidationTimeoutRef.current);
+      }
+    };
+  }, [assistantId, isEditingCredentials, hasStoredCredentials]);
 
   // Função para adicionar ou atualizar mensagens agrupando falas consecutivas
   const addOrUpdateMessage = (newMessage: Message) => {
@@ -1693,6 +1760,24 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         <Badge variant="secondary" className="ml-2 text-xs">
                           Obrigatório
                         </Badge>
+                        {assistantIdValidation.status === 'valid' && (
+                          <Badge variant="default" className="ml-2 text-xs bg-green-500">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Válido
+                          </Badge>
+                        )}
+                        {assistantIdValidation.status === 'validating' && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Validando
+                          </Badge>
+                        )}
+                        {assistantIdValidation.status === 'invalid' && (
+                          <Badge variant="destructive" className="ml-2 text-xs">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Inválido
+                          </Badge>
+                        )}
                       </Label>
                       <Input
                         id="assistantId"
@@ -1703,11 +1788,30 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                           setAssistantId(e.target.value);
                           setFieldErrors(prev => ({ ...prev, assistantId: false }));
                         }}
-                        className={`w-full ${fieldErrors.assistantId ? "border-red-500" : ""}`}
+                        className={`w-full ${
+                          fieldErrors.assistantId 
+                            ? "border-red-500" 
+                            : assistantIdValidation.status === 'valid'
+                            ? "border-green-500"
+                            : assistantIdValidation.status === 'invalid'
+                            ? "border-red-500"
+                            : ""
+                        }`}
                       />
                       {fieldErrors.assistantId && (
                         <p className="text-xs text-red-500">
                           Este campo é obrigatório
+                        </p>
+                      )}
+                      {assistantIdValidation.message && assistantIdValidation.status !== 'idle' && (
+                        <p className={`text-xs ${
+                          assistantIdValidation.status === 'valid' 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : assistantIdValidation.status === 'invalid'
+                            ? 'text-red-500'
+                            : 'text-muted-foreground'
+                        }`}>
+                          {assistantIdValidation.message}
                         </p>
                       )}
                     </div>
