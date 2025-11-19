@@ -337,8 +337,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       setAssistantIdValidation({ status: 'validating', message: 'Validando...' });
 
       try {
+        // Trim e validar antes de enviar
+        const trimmedAssistantId = assistantId.trim();
+        
         const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?assistantId=${encodeURIComponent(assistantId)}`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?assistantId=${encodeURIComponent(trimmedAssistantId)}`,
           {
             method: 'GET',
             headers: {
@@ -349,7 +352,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
         const data = await response.json();
 
-        if (response.ok && data.valid) {
+        if (response.ok && data.exists) {
           setAssistantIdValidation({ 
             status: 'valid', 
             message: `✓ Assistant válido: ${data.assistant?.name || 'Sem nome'}` 
@@ -818,7 +821,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
 
     // Validar formato da Public Key
-    if (publicKey.startsWith('sk_')) {
+    const trimmedPublicKey = publicKey.trim();
+    const trimmedAssistantId = assistantId.trim();
+    const trimmedPhoneNumberId = phoneNumberId.trim();
+
+    if (trimmedPublicKey.startsWith('sk_')) {
       toast({
         title: 'Tipo de chave incorreto',
         description: '⚠️ Você está usando uma Private Key (sk_...). Use a Public Key.',
@@ -883,7 +890,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       setIsEditingCredentials(false);
       
       // Avisar se Phone Number ID não foi configurado
-      if (!phoneNumberId.trim()) {
+      if (!trimmedPhoneNumberId) {
         toast({
           title: 'Configurações salvas',
           description: 'Credenciais salvas. Nota: Phone Number ID não configurado - você não poderá fazer chamadas outbound.',
