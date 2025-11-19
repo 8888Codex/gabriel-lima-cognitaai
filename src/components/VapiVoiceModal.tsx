@@ -197,6 +197,9 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [successEvaluationPrompt, setSuccessEvaluationPrompt] = useState('');
   const [successEvaluationRubric, setSuccessEvaluationRubric] = useState<SuccessEvaluationRubric>('NumericScale');
   
+  // Estado para feedback de auto-save do phoneNumberId
+  const [phoneNumberIdSaved, setPhoneNumberIdSaved] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -267,6 +270,32 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       }
     };
   }, [vapi]);
+
+  // Auto-save phoneNumberId quando ele mudar (se credenciais já estão salvas)
+  useEffect(() => {
+    if (hasStoredCredentials && !isEditingCredentials && phoneNumberId) {
+      const savedCredentials = localStorage.getItem(VAPI_STORAGE_KEY);
+      if (savedCredentials) {
+        try {
+          const parsed = JSON.parse(savedCredentials);
+          // Só atualizar se phoneNumberId mudou
+          if (parsed.phoneNumberId !== phoneNumberId) {
+            localStorage.setItem(VAPI_STORAGE_KEY, JSON.stringify({
+              ...parsed,
+              phoneNumberId: phoneNumberId
+            }));
+            console.log('✅ Phone Number ID auto-saved:', phoneNumberId);
+            
+            // Mostrar feedback visual por 2 segundos
+            setPhoneNumberIdSaved(true);
+            setTimeout(() => setPhoneNumberIdSaved(false), 2000);
+          }
+        } catch (error) {
+          console.error('Error auto-saving phoneNumberId:', error);
+        }
+      }
+    }
+  }, [phoneNumberId, hasStoredCredentials, isEditingCredentials]);
 
   // Função para adicionar ou atualizar mensagens agrupando falas consecutivas
   const addOrUpdateMessage = (newMessage: Message) => {
@@ -1286,7 +1315,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
             <div className="flex items-center gap-2">
               {hasStoredCredentials && (
                 <Badge variant={phoneNumberId ? "default" : "secondary"} className="text-xs">
-                  {phoneNumberId ? "✓ Outbound Pronto" : "⚠ Só Inbound"}
+                  {phoneNumberId ? "✓ Outbound Configurado" : "⚠ Adicione Phone Number ID"}
                 </Badge>
               )}
               {isCallActive && (
@@ -1547,11 +1576,16 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">
+                      <label className="text-sm font-medium text-foreground flex items-center gap-2">
                         Phone Number ID
-                        <Badge variant="secondary" className="ml-2 text-xs">
+                        <Badge variant="secondary" className="text-xs">
                           Obrigatório para Outbound
                         </Badge>
+                        {phoneNumberIdSaved && (
+                          <Badge variant="default" className="text-xs animate-fade-in">
+                            ✓ Salvo automaticamente
+                          </Badge>
+                        )}
                       </label>
                       <Input
                         type="text"
