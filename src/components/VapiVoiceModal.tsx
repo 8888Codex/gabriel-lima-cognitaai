@@ -1275,9 +1275,35 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
             outboundPollIntervalRef.current = null;
           }
           
+          // Detectar erro de conexão SIP
+          const endedReason = callData.endedReason || '';
+          const phoneDetails = callData.phoneCallProviderDetails || {};
+          const sipStatus = phoneDetails.sipStatus;
+          const sipReason = phoneDetails.sipReason;
+          
+          if (endedReason.includes('error-sip-outbound-call-failed-to-connect')) {
+            setOutboundStatus(`❌ Falha na conexão (SIP ${sipStatus}: ${sipReason || 'Timeout'})`);
+            
+            toast({
+              title: "❌ Falha ao conectar",
+              description: `A ligação não conseguiu conectar. Possíveis causas:\n\n• Phone Number ID não configurado para o país destino\n• Número indisponível ou incorreto\n• Créditos insuficientes na Vapi\n• Configurações de firewall/SIP\n\nStatus SIP: ${sipStatus} - ${sipReason || 'Request Timeout'}`,
+              variant: "destructive",
+              duration: 10000,
+            });
+            
+            console.error('🚫 SIP Connection Error:', {
+              endedReason,
+              sipStatus,
+              sipReason,
+              phoneDetails,
+            });
+            
+            return;
+          }
+          
           toast({
             title: "Ligação finalizada",
-            description: callData.duration 
+            description: callData.duration
               ? `Duração: ${Math.floor(callData.duration / 60)}min ${callData.duration % 60}s`
               : undefined,
           });
