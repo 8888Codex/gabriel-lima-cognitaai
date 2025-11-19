@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Vapi from '@vapi-ai/web';
+import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCallLogs } from '@/hooks/useCallLogs';
@@ -980,10 +981,10 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   };
 
   const testConnection = async () => {
-    if (!publicKey.trim()) {
+    if (!assistantId.trim()) {
       toast({
-        title: 'Chave não configurada',
-        description: 'Preencha a Public Key antes de testar',
+        title: 'Assistant ID não configurado',
+        description: 'Preencha o Assistant ID antes de testar',
         variant: 'destructive',
       });
       return;
@@ -992,34 +993,40 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setIsTestingConnection(true);
     
     try {
-      const response = await fetch('https://api.vapi.ai/assistant', {
-        headers: {
-          'Authorization': `Bearer ${publicKey}`,
-        }
+      // Testar se o edge function está configurado corretamente
+      const { data, error } = await supabase.functions.invoke('make-vapi-call', {
+        body: {
+          phoneNumber: '+15555555555', // Número de teste
+          assistantId,
+          phoneNumberId: phoneNumberId || 'test-id',
+        },
       });
 
-      if (response.ok) {
-        toast({
-          title: '✓ Conexão bem-sucedida',
-          description: 'A Public Key está funcionando corretamente!',
-        });
-      } else if (response.status === 401 || response.status === 403) {
-        toast({
-          title: '✗ Chave inválida',
-          description: 'A Public Key não foi aceita pela Vapi. Verifique se você copiou a chave correta do dashboard.',
-          variant: 'destructive',
-        });
+      if (error) {
+        // Se erro menciona Private Key, significa que não está configurada
+        if (error.message?.includes('VAPI_PRIVATE_KEY')) {
+          toast({
+            title: '⚙️ Configuração pendente',
+            description: 'A Private Key precisa ser configurada no backend. Entre em contato com o administrador.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: '⚠️ Erro ao testar',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
       } else {
         toast({
-          title: '⚠ Erro ao testar',
-          description: `Status: ${response.status}. Tente novamente.`,
-          variant: 'destructive',
+          title: '✓ Configuração válida',
+          description: 'As credenciais estão corretas e prontas para uso!',
         });
       }
     } catch (error) {
       toast({
         title: '✗ Erro de conexão',
-        description: 'Não foi possível conectar à API da Vapi. Verifique sua internet.',
+        description: 'Não foi possível conectar ao servidor. Verifique sua internet.',
         variant: 'destructive',
       });
     } finally {
@@ -1037,10 +1044,10 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       return;
     }
 
-    if (!publicKey || !assistantId || !phoneNumberId) {
+    if (!assistantId || !phoneNumberId) {
       toast({
         title: "Credenciais incompletas",
-        description: "Configure suas credenciais Vapi primeiro",
+        description: "Configure Assistant ID e Phone Number ID primeiro",
         variant: "destructive",
       });
       setShowConfig(true);
@@ -1052,35 +1059,23 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setOutboundStatus('Iniciando ligação...');
 
     try {
-      const config: OutboundCallConfig = {
-        assistantId,
-        phoneNumberId,
-        customer: {
-          number: phoneNumber,
+      // Chamar edge function ao invés de Vapi diretamente
+      const { data, error } = await supabase.functions.invoke('make-vapi-call', {
+        body: {
+          phoneNumber,
+          assistantId,
+          phoneNumberId,
         },
-      };
-
-      const response = await fetch("https://api.vapi.ai/call", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${publicKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(config),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Falha ao iniciar ligação");
-      }
+      if (error) throw error;
 
-      const callData = await response.json();
-      setOutboundCallId(callData.id);
+      setOutboundCallId(data.id);
       setOutboundStatus('Chamando...');
 
       // Save to call logs
       await saveCallLog({
-        id: callData.id,
+        id: data.id,
         status: 'queued',
         customer: {
           number: phoneNumber,
@@ -1093,32 +1088,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       });
 
       // Start polling for status
-      monitorOutboundCall(callData.id);
+      monitorOutboundCall(data.id);
     } catch (error) {
       console.error('Error making outbound call:', error);
       setIsOutboundCalling(false);
       setOutboundStatus('');
       
-      let errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      let errorTitle = "Erro ao fazer ligação";
-      
-      // Detectar diferentes tipos de erro
-      if (errorMessage.toLowerCase().includes('invalid key') || 
-          errorMessage.toLowerCase().includes('unauthorized') ||
-          errorMessage.toLowerCase().includes('401') ||
-          errorMessage.toLowerCase().includes('403')) {
-        errorTitle = '🔑 Autenticação falhou';
-        errorMessage = 'A Public Key não foi aceita pela Vapi.\n\n' +
-                       'Verifique:\n' +
-                       '• Se você copiou a chave completa (sem espaços extras)\n' +
-                       '• Se a chave pertence ao mesmo projeto do Assistant ID\n' +
-                       '• Se a chave tem permissões para fazer chamadas\n\n' +
-                       'Use o botão "Testar Conexão" para verificar.';
-      }
-      
       toast({
-        title: errorTitle,
-        description: errorMessage,
+        title: "Erro ao fazer ligação",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     }
@@ -1419,12 +1397,13 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                           Obrigatório
                         </Badge>
                       </Label>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Use a <strong>Public Key</strong> do Vapi Dashboard.
-                        Aceita formatos: <code className="bg-muted px-1 rounded">UUID</code> ou <code className="bg-muted px-1 rounded">pk_...</code>
-                        <br />
-                        ⚠️ Não use a Private Key (<code className="bg-muted px-1 rounded">sk_...</code>).
-                      </p>
+                <p className="text-xs text-muted-foreground mb-2">
+                  <strong>Public Key</strong>: Usada para chamadas inbound (formato UUID ou pk_...).
+                  <br />
+                  Para chamadas outbound, a Private Key é armazenada de forma segura no backend.
+                  <br />
+                  ⚠️ Nunca use a Private Key (<code className="bg-muted px-1 rounded">sk_...</code>) aqui.
+                </p>
                       <div className="relative">
                         <Input
                           id="publicKey"
@@ -2067,15 +2046,17 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                 <AlertDescription className="space-y-2">
                   <p>Configure Public Key e Assistant ID na aba "Chamada de Voz".</p>
                   
-                  <div className="bg-muted/50 p-2 rounded text-xs space-y-1 mt-2">
-                    <p className="font-medium">💡 Onde encontrar no Vapi Dashboard:</p>
-                    <p>1. <strong>Public Key</strong>: Settings → API Keys → Public API Keys</p>
-                    <p className="ml-4 text-muted-foreground">Formato: UUID (ex: 12ff5e9e-8b8d-...)</p>
-                    <p>2. <strong>Assistant ID</strong>: Assistants → [Seu Assistant]</p>
-                    <p className="ml-4 text-muted-foreground">Formato: UUID (ex: 7b09a672-...)</p>
-                    <p>3. <strong>Phone Number ID</strong>: Phone Numbers → [Seu Número]</p>
-                    <p className="ml-4 text-muted-foreground">Formato: UUID (ex: 3c4d8e1f-...)</p>
-                  </div>
+                    <div className="bg-muted/50 p-2 rounded text-xs space-y-1 mt-2">
+                      <p className="font-medium">💡 Onde encontrar no Vapi Dashboard:</p>
+                      <p>1. <strong>Public Key</strong>: Settings → API Keys → Public API Keys</p>
+                      <p className="ml-4 text-muted-foreground">Formato: UUID | Usado para chamadas inbound</p>
+                      <p>2. <strong>Private Key</strong>: Settings → API Keys → Private API Keys</p>
+                      <p className="ml-4 text-muted-foreground">Formato: sk_... | Armazenada no backend (segura)</p>
+                      <p>3. <strong>Assistant ID</strong>: Assistants → [Seu Assistant]</p>
+                      <p className="ml-4 text-muted-foreground">Formato: UUID</p>
+                      <p>4. <strong>Phone Number ID</strong>: Phone Numbers → [Seu Número]</p>
+                      <p className="ml-4 text-muted-foreground">Formato: UUID</p>
+                    </div>
                   
                   <div className="flex gap-2 mt-3">
                     <Button 
