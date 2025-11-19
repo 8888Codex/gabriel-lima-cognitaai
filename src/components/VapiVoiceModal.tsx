@@ -802,6 +802,122 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
   };
 
+  const testVapiConnection = async () => {
+    const trimmedPublicKey = publicKey.trim();
+    const trimmedAssistantId = assistantId.trim();
+    const trimmedPhoneNumberId = phoneNumberId.trim();
+
+    if (!trimmedPublicKey || !trimmedAssistantId) {
+      toast({
+        title: 'Campos obrigatórios vazios',
+        description: 'Preencha Public Key e Assistant ID para continuar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsConnecting(true);
+    const results: string[] = [];
+    let allValid = true;
+
+    try {
+      // 1. Testar Assistant ID
+      toast({
+        title: 'Testando conexão Vapi',
+        description: 'Validando Assistant ID...',
+      });
+
+      const assistantResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?assistantId=${encodeURIComponent(trimmedAssistantId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const assistantData = await assistantResponse.json();
+
+      if (assistantResponse.ok && assistantData.exists) {
+        results.push(`✅ Assistant ID válido: ${assistantData.assistant?.name || 'Sem nome'}`);
+      } else {
+        results.push(`❌ Assistant ID inválido: ${assistantData.error || 'Não encontrado'}`);
+        allValid = false;
+      }
+
+      // 2. Testar Phone Number ID (se fornecido)
+      if (trimmedPhoneNumberId) {
+        toast({
+          title: 'Testando conexão Vapi',
+          description: 'Validando Phone Number ID...',
+        });
+
+        const phoneResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?phoneNumberId=${encodeURIComponent(trimmedPhoneNumberId)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        const phoneData = await phoneResponse.json();
+
+        if (phoneResponse.ok && phoneData.exists) {
+          results.push(`✅ Phone Number ID válido: ${phoneData.phoneNumber?.number || 'Sem número'}`);
+        } else {
+          results.push(`❌ Phone Number ID inválido: ${phoneData.error || 'Não encontrado'}`);
+          allValid = false;
+        }
+      } else {
+        results.push('⚠️ Phone Number ID não configurado (chamadas outbound desabilitadas)');
+      }
+
+      // 3. Validar formato da Public Key
+      if (trimmedPublicKey.startsWith('sk_')) {
+        results.push('❌ Public Key inválida: você está usando uma Private Key (sk_...)');
+        allValid = false;
+      } else {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedPublicKey);
+        const isPkFormat = trimmedPublicKey.startsWith('pk_');
+
+        if (isUUID || isPkFormat || trimmedPublicKey.includes('test')) {
+          results.push('✅ Public Key com formato válido');
+        } else {
+          results.push('❌ Public Key com formato inválido');
+          allValid = false;
+        }
+      }
+
+      // Mostrar resultado final
+      toast({
+        title: allValid ? '✅ Conexão Vapi OK' : '⚠️ Problemas na conexão',
+        description: (
+          <div className="space-y-1 text-sm">
+            {results.map((result, i) => (
+              <div key={i}>{result}</div>
+            ))}
+          </div>
+        ),
+        variant: allValid ? 'default' : 'destructive',
+        duration: 6000,
+      });
+
+    } catch (error) {
+      console.error('Erro ao testar conexão:', error);
+      toast({
+        title: 'Erro no teste',
+        description: 'Não foi possível testar a conexão com Vapi',
+        variant: 'destructive',
+      });
+      allValid = false;
+    } finally {
+      setIsConnecting(false);
+    }
+
+    return allValid;
+  };
+
   const saveCredentials = () => {
     // Validar campos obrigatórios
     const errors = {
@@ -1944,9 +2060,28 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
                     {/* Botões de ação */}
                     {isEditingCredentials ? (
-                      // Modo de edição: mostrar Salvar e Cancelar
+                      // Modo de edição: mostrar Testar, Salvar e Cancelar
                       <>
                         <div className="flex gap-2">
+                          <Button
+                            onClick={testVapiConnection}
+                            disabled={!publicKey.trim() || !assistantId.trim() || isConnecting}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            {isConnecting ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Testando...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Testar Conexão
+                              </>
+                            )}
+                          </Button>
+                          
                           <Button
                             onClick={saveCredentials}
                             disabled={!publicKey.trim() || !assistantId.trim()}
