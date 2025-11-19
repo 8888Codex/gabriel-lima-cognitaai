@@ -1120,6 +1120,30 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       }
 
       console.log('✅ Assistant validated:', validationData.assistant?.name);
+
+      // Validate phone number exists before making the call
+      setOutboundStatus('Validando Phone Number ID...');
+      const phoneValidationResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?phoneNumberId=${encodeURIComponent(phoneNumberId)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+
+      const phoneValidationData = await phoneValidationResponse.json();
+
+      if (!phoneValidationResponse.ok || phoneValidationData?.error) {
+        throw new Error(phoneValidationData?.error || 'Erro ao validar Phone Number ID');
+      }
+
+      if (!phoneValidationData?.exists) {
+        throw new Error(`❌ Phone Number ID inválido. O ID "${phoneNumberId}" não existe na sua conta Vapi. Verifique em https://dashboard.vapi.ai`);
+      }
+
+      console.log('✅ Phone Number validated:', phoneValidationData.phoneNumber?.number);
       setOutboundStatus('Iniciando ligação...');
 
       // Chamar edge function ao invés de Vapi diretamente
