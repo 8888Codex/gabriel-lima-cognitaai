@@ -1220,22 +1220,24 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
     const pollStatus = async () => {
       try {
-        // Use edge function to check status (with Private Key on backend)
-        const { data, error } = await supabase.functions.invoke('make-vapi-call', {
-          body: { callId },
-        });
+        // Use edge function to check status (with Private Key on backend) - GET request
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call?callId=${encodeURIComponent(callId)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        );
 
-        if (error) {
-          console.error('Error fetching call status:', error);
-          throw new Error('Falha ao obter status da ligação');
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Error fetching call status:', errorData);
+          throw new Error(errorData?.error || 'Falha ao obter status da ligação');
         }
 
-        if (data?.error) {
-          console.error('Error from edge function:', data.error);
-          throw new Error(data.error);
-        }
-
-        const callData = data;
+        const callData = await response.json();
         console.log('📊 Call status:', callData.status);
         
         // Update UI status
