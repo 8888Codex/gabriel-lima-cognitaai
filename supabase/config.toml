@@ -1,5 +1,8 @@
 project_id = "dinrkgwfwvnjptpymdym"
 
+[functions.make-vapi-call]
+verify_jwt = false
+
 [functions.process-call-queue]
 verify_jwt = false
 
