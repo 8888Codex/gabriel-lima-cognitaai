@@ -10,11 +10,84 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Health check endpoint - GET request
+  if (req.method === 'GET') {
+    const VAPI_PRIVATE_KEY = Deno.env.get('VAPI_PRIVATE_KEY');
+    
+    if (!VAPI_PRIVATE_KEY) {
+      return new Response(
+        JSON.stringify({ 
+          status: 'error',
+          error: 'VAPI_PRIVATE_KEY not configured in backend',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        }
+      );
+    }
+
+    // Test the key by calling Vapi API to list assistants
+    try {
+      const response = await fetch('https://api.vapi.ai/assistant', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${VAPI_PRIVATE_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Vapi API auth error:', response.status, errorText);
+        return new Response(
+          JSON.stringify({ 
+            status: 'error',
+            error: `Invalid VAPI_PRIVATE_KEY: ${response.status}`,
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401,
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          status: 'ok',
+          message: 'VAPI_PRIVATE_KEY is configured and valid',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    } catch (error) {
+      console.error('💥 Error testing Vapi credentials:', error);
+      return new Response(
+        JSON.stringify({ 
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        }
+      );
+    }
+  }
+
+  // POST request - make actual call
   try {
     const { phoneNumber, assistantId, phoneNumberId } = await req.json();
     
     if (!phoneNumber || !assistantId || !phoneNumberId) {
       throw new Error('Missing required fields: phoneNumber, assistantId, or phoneNumberId');
+    }
+
+    // Validate E.164 format
+    const e164Regex = /^\+[1-9]\d{1,14}$/;
+    if (!e164Regex.test(phoneNumber)) {
+      throw new Error(`Invalid phone number format. Must be E.164 format (e.g., +15551234567). Received: ${phoneNumber}`);
     }
 
     const VAPI_PRIVATE_KEY = Deno.env.get('VAPI_PRIVATE_KEY');
@@ -43,7 +116,22 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Vapi API error:', response.status, errorText);
-      throw new Error(`Vapi API error (${response.status}): ${errorText}`);
+      
+      let errorMessage = `Vapi API error (${response.status})`;
+      
+      // Try to parse error details
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.message) {
+          errorMessage = Array.isArray(errorJson.message) 
+            ? errorJson.message.join(', ') 
+            : errorJson.message;
+        }
+      } catch {
+        errorMessage = errorText;
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const callData = await response.json();
