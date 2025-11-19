@@ -1078,7 +1078,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error making outbound call:', error);
+        throw error;
+      }
+
+      // Check if the response contains an error (from edge function)
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       setOutboundCallId(data.id);
       setOutboundStatus('Chamando...');
@@ -1104,9 +1112,25 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       setIsOutboundCalling(false);
       setOutboundStatus('');
       
+      // Extract error message
+      let errorMessage = "Erro desconhecido";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Provide helpful context for common errors
+        if (errorMessage.includes("Does Not Exist")) {
+          errorMessage = `❌ Assistant ID inválido. O assistantId configurado não existe na sua conta Vapi. Verifique o ID em https://dashboard.vapi.ai`;
+        } else if (errorMessage.includes("E.164 format")) {
+          errorMessage = `❌ Formato de telefone inválido. Use o formato E.164 (ex: +5511999999999)`;
+        } else if (errorMessage.includes("VAPI_PRIVATE_KEY")) {
+          errorMessage = `❌ VAPI_PRIVATE_KEY não configurada. Configure em Lovable Settings → Secrets`;
+        }
+      }
+      
       toast({
         title: "Erro ao fazer ligação",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description: errorMessage,
         variant: "destructive",
       });
     }
