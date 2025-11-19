@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCallLogs } from '@/hooks/useCallLogs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -706,6 +707,26 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       return;
     }
 
+    // Validar formato da Public Key
+    if (publicKey.startsWith('sk_')) {
+      toast({
+        title: 'Tipo de chave incorreto',
+        description: '⚠️ Você está usando uma Private Key (sk_...). Use a Public Key (pk_...) para maior segurança.',
+        variant: 'destructive',
+      });
+      setFieldErrors(prev => ({ ...prev, publicKey: true }));
+      return;
+    }
+    
+    if (!publicKey.startsWith('pk_') && !publicKey.includes('test')) {
+      toast({
+        title: 'Formato de chave suspeito',
+        description: 'A Public Key geralmente começa com "pk_". Verifique se copiou a chave correta.',
+        variant: 'destructive',
+      });
+      // Não bloquear, apenas avisar
+    }
+
     // Construir analysisPlan apenas com campos preenchidos
     const analysisPlan: AnalysisPlan = {};
     if (summaryPrompt.trim()) analysisPlan.summaryPrompt = summaryPrompt.trim();
@@ -1023,9 +1044,18 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       console.error('Error making outbound call:', error);
       setIsOutboundCalling(false);
       setOutboundStatus('');
+      
+      let errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      
+      // Detectar erro de chave inválida
+      if (errorMessage.toLowerCase().includes('invalid key') || 
+          errorMessage.toLowerCase().includes('unauthorized')) {
+        errorMessage = '🔑 Chave inválida. Verifique se você está usando a Public Key (pk_...) correta do Vapi.';
+      }
+      
       toast({
         title: "Erro ao fazer ligação",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -1320,19 +1350,46 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                   // Modo edição - campos editáveis
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">
+                      <Label htmlFor="publicKey" className="text-sm font-medium">
                         Vapi Public Key
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="Digite sua Public Key"
-                        value={publicKey}
-                        onChange={(e) => {
-                          setPublicKey(e.target.value);
-                          setFieldErrors(prev => ({ ...prev, publicKey: false }));
-                        }}
-                        className={`w-full ${fieldErrors.publicKey ? "border-red-500" : ""}`}
-                      />
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          Obrigatório
+                        </Badge>
+                      </Label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Use a <strong>Public Key</strong> (começa com <code className="bg-muted px-1 rounded">pk_...</code>).
+                        Não use a Private Key (<code className="bg-muted px-1 rounded">sk_...</code>).
+                      </p>
+                      <div className="relative">
+                        <Input
+                          id="publicKey"
+                          type="text"
+                          placeholder="Digite sua Public Key"
+                          value={publicKey}
+                          onChange={(e) => {
+                            setPublicKey(e.target.value);
+                            setFieldErrors(prev => ({ ...prev, publicKey: false }));
+                          }}
+                          className={`w-full ${fieldErrors.publicKey ? "border-red-500" : ""} ${publicKey ? "pr-24" : ""}`}
+                        />
+                        {publicKey && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            {publicKey.startsWith('pk_') ? (
+                              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                ✓ Pública
+                              </Badge>
+                            ) : publicKey.startsWith('sk_') ? (
+                              <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/20">
+                                ⚠ Privada
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                ? Desconhecida
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {fieldErrors.publicKey && (
                         <p className="text-xs text-red-500">
                           Este campo é obrigatório
@@ -1341,10 +1398,14 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                     </div>
                     
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">
+                      <Label htmlFor="assistantId" className="text-sm font-medium">
                         Assistant ID
-                      </label>
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          Obrigatório
+                        </Badge>
+                      </Label>
                       <Input
+                        id="assistantId"
                         type="text"
                         placeholder="Digite o Assistant ID"
                         value={assistantId}
@@ -1907,6 +1968,17 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                 <AlertTitle>Credenciais básicas não configuradas</AlertTitle>
                 <AlertDescription className="space-y-2">
                   <p>Configure Public Key e Assistant ID na aba "Chamada de Voz".</p>
+                  <p className="text-xs">
+                    💡 Dica: Encontre sua Public Key em{' '}
+                    <a 
+                      href="https://dashboard.vapi.ai/settings/keys" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="underline hover:text-primary"
+                    >
+                      Vapi Dashboard → Settings → API Keys
+                    </a>
+                  </p>
                   <Button 
                     onClick={() => setActiveTab('inbound')}
                     variant="outline"
