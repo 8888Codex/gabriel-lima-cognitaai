@@ -1143,38 +1143,50 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
 
     const pollStatus = async () => {
       try {
-        const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
-          headers: {
-            Authorization: `Bearer ${publicKey}`,
-          },
+        // Use edge function to check status (with Private Key on backend)
+        const { data, error } = await supabase.functions.invoke('make-vapi-call', {
+          body: { callId },
         });
 
-        if (!response.ok) {
-          throw new Error("Falha ao obter status da ligação");
+        if (error) {
+          console.error('Error fetching call status:', error);
+          throw new Error('Falha ao obter status da ligação');
         }
 
-        const callData = await response.json();
+        if (data?.error) {
+          console.error('Error from edge function:', data.error);
+          throw new Error(data.error);
+        }
+
+        const callData = data;
+        console.log('📊 Call status:', callData.status);
         
         // Update UI status
         const statusMap: Record<string, string> = {
           queued: 'Na fila...',
           ringing: 'Chamando...',
-          'in-progress': 'Em andamento',
+          'in-progress': '📞 Em andamento',
           forwarding: 'Encaminhando...',
-          ended: 'Finalizada',
+          ended: '✓ Finalizada',
         };
         
         setOutboundStatus(statusMap[callData.status] || callData.status);
 
-        // Update call log
-        await updateCallLog(callData.id, {
-          status: callData.status,
-          startedAt: callData.startedAt ? new Date(callData.startedAt) : undefined,
-          endedAt: callData.endedAt ? new Date(callData.endedAt) : undefined,
-          duration: callData.duration,
-          analysis: callData.analysis,
-          recordingUrl: callData.recordingUrl,
-        });
+        // Update call log in database
+        if (callData.status) {
+          await supabase
+            .from('call_logs')
+            .update({
+              status: callData.status,
+              started_at: callData.startedAt || null,
+              ended_at: callData.endedAt || null,
+              duration: callData.duration || null,
+              analysis_summary: callData.analysis?.summary || null,
+              analysis_structured_data: callData.analysis?.structuredData || null,
+              recording_url: callData.recordingUrl || null,
+            })
+            .eq('vapi_call_id', callId);
+        }
 
         // Stop polling if call ended
         if (callData.status === 'ended') {
