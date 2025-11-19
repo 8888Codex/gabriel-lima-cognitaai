@@ -993,34 +993,44 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     setIsTestingConnection(true);
     
     try {
-      // Testar se o edge function está configurado corretamente
-      const { data, error } = await supabase.functions.invoke('make-vapi-call', {
-        body: {
-          phoneNumber: '+15555555555', // Número de teste
-          assistantId,
-          phoneNumberId: phoneNumberId || 'test-id',
-        },
-      });
+      // Use health check endpoint (GET request) instead of making a real call
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/make-vapi-call`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
 
-      if (error) {
-        // Se erro menciona Private Key, significa que não está configurada
-        if (error.message?.includes('VAPI_PRIVATE_KEY')) {
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error') {
+        // Check if it's a VAPI_PRIVATE_KEY configuration error
+        if (data.error?.includes('VAPI_PRIVATE_KEY not configured')) {
           toast({
             title: '⚙️ Configuração pendente',
-            description: 'A Private Key precisa ser configurada no backend. Entre em contato com o administrador.',
+            description: 'A VAPI_PRIVATE_KEY precisa ser configurada no backend. Vá em Lovable Settings → Secrets.',
+            variant: 'destructive',
+          });
+        } else if (data.error?.includes('Invalid VAPI_PRIVATE_KEY')) {
+          toast({
+            title: '⚠️ Private Key inválida',
+            description: 'A VAPI_PRIVATE_KEY está configurada mas é inválida. Verifique o valor.',
             variant: 'destructive',
           });
         } else {
           toast({
             title: '⚠️ Erro ao testar',
-            description: error.message,
+            description: data.error || 'Erro desconhecido',
             variant: 'destructive',
           });
         }
       } else {
         toast({
           title: '✓ Configuração válida',
-          description: 'As credenciais estão corretas e prontas para uso!',
+          description: 'Backend configurado corretamente com VAPI_PRIVATE_KEY válida!',
         });
       }
     } catch (error) {
