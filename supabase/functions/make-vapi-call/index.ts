@@ -10,8 +10,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Health check endpoint - GET request
+  // GET request - health check or call status
   if (req.method === 'GET') {
+    const url = new URL(req.url);
+    const callId = url.searchParams.get('callId');
+    
     const VAPI_PRIVATE_KEY = Deno.env.get('VAPI_PRIVATE_KEY');
     
     if (!VAPI_PRIVATE_KEY) {
@@ -27,7 +30,57 @@ serve(async (req) => {
       );
     }
 
-    // Test the key by calling Vapi API to list assistants
+    // If callId provided, get call status
+    if (callId) {
+      console.log('📊 Fetching call status for:', callId);
+      
+      try {
+        const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${VAPI_PRIVATE_KEY}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Error fetching call status:', response.status, errorText);
+          return new Response(
+            JSON.stringify({ 
+              error: `Failed to get call status: ${response.status}`,
+            }),
+            {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: response.status,
+            }
+          );
+        }
+
+        const callData = await response.json();
+        console.log('✅ Call status:', callData.status);
+        
+        return new Response(
+          JSON.stringify(callData),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      } catch (error) {
+        console.error('💥 Error getting call status:', error);
+        return new Response(
+          JSON.stringify({ 
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+          }
+        );
+      }
+    }
+
+    // Health check - test the key by calling Vapi API to list assistants
     try {
       const response = await fetch('https://api.vapi.ai/assistant', {
         method: 'GET',
