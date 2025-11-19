@@ -190,6 +190,18 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   
+  // Call history state
+  interface CallAttempt {
+    id: string;
+    phoneNumber: string;
+    timestamp: Date;
+    status: 'success' | 'failed' | 'timeout';
+    error?: string;
+    sipStatus?: string;
+  }
+  const [callHistory, setCallHistory] = useState<CallAttempt[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  
   // Estados para Analysis Plan
   const [summaryPrompt, setSummaryPrompt] = useState('');
   const [structuredDataPrompt, setStructuredDataPrompt] = useState('');
@@ -1073,12 +1085,29 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
   };
 
+  // Validate E.164 phone number format
+  const validatePhoneNumber = (phone: string): boolean => {
+    const e164Regex = /^\+[1-9]\d{1,14}$/;
+    return e164Regex.test(phone);
+  };
+
   const makeOutboundCall = async () => {
     if (!phoneNumber.trim()) {
       toast({
         title: "Erro",
         description: "Digite um número de telefone válido",
         variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate phone number format
+    if (!validatePhoneNumber(phoneNumber)) {
+      toast({
+        title: "❌ Formato inválido",
+        description: "O número deve estar no formato E.164 (ex: +5511999999999). Certifique-se de incluir o código do país com +.",
+        variant: "destructive",
+        duration: 8000,
       });
       return;
     }
@@ -1205,10 +1234,31 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
         }
       }
       
+      // Save failed attempt to history
+      const failedAttempt: CallAttempt = {
+        id: `failed-${Date.now()}`,
+        phoneNumber: phoneNumber,
+        timestamp: new Date(),
+        status: 'failed',
+        error: errorMessage,
+      };
+      setCallHistory(prev => [failedAttempt, ...prev].slice(0, 10));
+      
       toast({
         title: "Erro ao fazer ligação",
         description: errorMessage,
         variant: "destructive",
+        action: (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => makeOutboundCall()}
+            className="shrink-0"
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Retry
+          </Button>
+        ),
       });
     }
   };
@@ -1284,11 +1334,33 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           if (endedReason.includes('error-sip-outbound-call-failed-to-connect')) {
             setOutboundStatus(`❌ Falha na conexão (SIP ${sipStatus}: ${sipReason || 'Timeout'})`);
             
+            // Save to call history
+            const attempt: CallAttempt = {
+              id: callId,
+              phoneNumber: phoneNumber,
+              timestamp: new Date(),
+              status: 'timeout',
+              error: `SIP ${sipStatus}: ${sipReason || 'Request Timeout'}`,
+              sipStatus: `${sipStatus}`,
+            };
+            setCallHistory(prev => [attempt, ...prev].slice(0, 10)); // Keep last 10 attempts
+            
             toast({
               title: "❌ Falha ao conectar",
-              description: `A ligação não conseguiu conectar. Possíveis causas:\n\n• Phone Number ID não configurado para o país destino\n• Número indisponível ou incorreto\n• Créditos insuficientes na Vapi\n• Configurações de firewall/SIP\n\nStatus SIP: ${sipStatus} - ${sipReason || 'Request Timeout'}`,
+              description: `A ligação não conseguiu conectar.\n\nStatus SIP: ${sipStatus} - ${sipReason || 'Request Timeout'}\n\nPossíveis causas:\n• Phone Number ID não configurado para o país destino\n• Número indisponível ou incorreto\n• Créditos insuficientes na Vapi`,
               variant: "destructive",
-              duration: 10000,
+              duration: 15000,
+              action: (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => makeOutboundCall()}
+                  className="shrink-0"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Tentar Novamente
+                </Button>
+              ),
             });
             
             console.error('🚫 SIP Connection Error:', {
@@ -1300,6 +1372,15 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
             
             return;
           }
+          
+          // Save successful call to history
+          const successAttempt: CallAttempt = {
+            id: callId,
+            phoneNumber: phoneNumber,
+            timestamp: new Date(),
+            status: 'success',
+          };
+          setCallHistory(prev => [successAttempt, ...prev].slice(0, 10));
           
           toast({
             title: "Ligação finalizada",
@@ -2311,6 +2392,64 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                     )}
                   </div>
                 </div>
+
+                {/* Call History */}
+                {callHistory.length > 0 && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setShowHistory(!showHistory)}
+                      className="w-full p-3 bg-muted/50 hover:bg-muted flex items-center justify-between text-sm font-medium"
+                    >
+                      <span className="flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        Histórico de Tentativas ({callHistory.length})
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${showHistory ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    
+                    {showHistory && (
+                      <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                        {callHistory.map((attempt, index) => (
+                          <div
+                            key={attempt.id}
+                            className="p-3 bg-background border rounded-lg space-y-1 text-sm"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-xs">{attempt.phoneNumber}</span>
+                              <Badge
+                                variant={
+                                  attempt.status === 'success' ? 'default' :
+                                  attempt.status === 'timeout' ? 'destructive' :
+                                  'secondary'
+                                }
+                                className="text-xs"
+                              >
+                                {attempt.status === 'success' ? '✓ Sucesso' :
+                                 attempt.status === 'timeout' ? '⏱ Timeout' :
+                                 '❌ Erro'}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(attempt.timestamp).toLocaleString('pt-BR')}
+                            </div>
+                            {attempt.error && (
+                              <div className="text-xs text-destructive bg-destructive/10 p-2 rounded mt-1">
+                                {attempt.error}
+                              </div>
+                            )}
+                            {attempt.sipStatus && (
+                              <div className="text-xs text-muted-foreground">
+                                SIP: {attempt.sipStatus}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="border-t pt-4 mt-auto">
                   <h3 className="font-semibold mb-2">Como funciona?</h3>
