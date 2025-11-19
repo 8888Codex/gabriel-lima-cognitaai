@@ -161,6 +161,13 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [showConfig, setShowConfig] = useState(true);
   const [isEditingCredentials, setIsEditingCredentials] = useState(false);
   const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    publicKey: boolean;
+    assistantId: boolean;
+  }>({
+    publicKey: false,
+    assistantId: false,
+  });
   const [selectedTheme, setSelectedTheme] = useState<VapiTheme>('blue');
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
@@ -682,10 +689,18 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   };
 
   const saveCredentials = () => {
-    if (!publicKey.trim() || !assistantId.trim()) {
+    // Validar campos obrigatórios
+    const errors = {
+      publicKey: !publicKey.trim(),
+      assistantId: !assistantId.trim(),
+    };
+    
+    setFieldErrors(errors);
+    
+    if (errors.publicKey || errors.assistantId) {
       toast({
-        title: 'Campos obrigatórios',
-        description: 'Preencha Public Key e Assistant ID',
+        title: 'Campos obrigatórios vazios',
+        description: 'Preencha Public Key e Assistant ID para continuar',
         variant: 'destructive',
       });
       return;
@@ -731,10 +746,18 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       setHasStoredCredentials(true);
       setIsEditingCredentials(false);
       
-      toast({
-        title: 'Configurações salvas',
-        description: 'Suas credenciais foram salvas com sucesso',
-      });
+      // Avisar se Phone Number ID não foi configurado
+      if (!phoneNumberId.trim()) {
+        toast({
+          title: 'Configurações salvas',
+          description: 'Credenciais salvas. Nota: Phone Number ID não configurado - você não poderá fazer chamadas outbound.',
+        });
+      } else {
+        toast({
+          title: 'Configurações salvas',
+          description: 'Todas as credenciais foram salvas com sucesso',
+        });
+      }
     } catch (error) {
       console.error('Error saving credentials:', error);
       toast({
@@ -1124,6 +1147,11 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           <DialogTitle className="flex items-center justify-between">
             <span>Chamadas de Voz Vapi</span>
             <div className="flex items-center gap-2">
+              {hasStoredCredentials && (
+                <Badge variant={phoneNumberId ? "default" : "secondary"} className="text-xs">
+                  {phoneNumberId ? "✓ Outbound Pronto" : "⚠ Só Inbound"}
+                </Badge>
+              )}
               {isCallActive && (
                 <span className="text-sm font-normal text-muted-foreground">
                   {formatDuration(callDuration)}
@@ -1299,9 +1327,17 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         type="text"
                         placeholder="Digite sua Public Key"
                         value={publicKey}
-                        onChange={(e) => setPublicKey(e.target.value)}
-                        className="w-full"
+                        onChange={(e) => {
+                          setPublicKey(e.target.value);
+                          setFieldErrors(prev => ({ ...prev, publicKey: false }));
+                        }}
+                        className={`w-full ${fieldErrors.publicKey ? "border-red-500" : ""}`}
                       />
+                      {fieldErrors.publicKey && (
+                        <p className="text-xs text-red-500">
+                          Este campo é obrigatório
+                        </p>
+                      )}
                     </div>
                     
                     <div className="space-y-2">
@@ -1312,14 +1348,25 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         type="text"
                         placeholder="Digite o Assistant ID"
                         value={assistantId}
-                        onChange={(e) => setAssistantId(e.target.value)}
-                        className="w-full"
+                        onChange={(e) => {
+                          setAssistantId(e.target.value);
+                          setFieldErrors(prev => ({ ...prev, assistantId: false }));
+                        }}
+                        className={`w-full ${fieldErrors.assistantId ? "border-red-500" : ""}`}
                       />
+                      {fieldErrors.assistantId && (
+                        <p className="text-xs text-red-500">
+                          Este campo é obrigatório
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">
-                        Phone Number ID (Opcional - para chamadas outbound)
+                        Phone Number ID
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          Obrigatório para Outbound
+                        </Badge>
                       </label>
                       <Input
                         type="text"
@@ -1329,7 +1376,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         className="w-full"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Necessário apenas para fazer chamadas de saída (outbound calling)
+                        Necessário apenas se você for fazer chamadas de saída (outbound calls)
                       </p>
                     </div>
 
@@ -1854,12 +1901,40 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
           </TabsContent>
 
           <TabsContent value="outbound" className="flex-1 flex flex-col mt-0 p-6">
-            {!publicKey || !assistantId || !phoneNumberId ? (
+            {!publicKey || !assistantId ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Credenciais básicas não configuradas</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p>Configure Public Key e Assistant ID na aba "Chamada de Voz".</p>
+                  <Button 
+                    onClick={() => setActiveTab('inbound')}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Ir para Configurações
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : !phoneNumberId ? (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Credenciais necessárias</AlertTitle>
-                <AlertDescription>
-                  Configure suas credenciais Vapi na aba "Chamada de Voz" primeiro.
+                <AlertTitle>Phone Number ID necessário</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p>Para fazer chamadas outbound, você precisa configurar o Phone Number ID.</p>
+                  <p className="text-xs">Este é um ID específico do Vapi que identifica o número de telefone que será usado para originar as chamadas.</p>
+                  <Button 
+                    onClick={() => {
+                      setActiveTab('inbound');
+                      setIsEditingCredentials(true);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Configurar Phone Number ID
+                  </Button>
                 </AlertDescription>
               </Alert>
             ) : (
