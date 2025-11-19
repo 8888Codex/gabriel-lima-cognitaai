@@ -162,6 +162,7 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
   const [showConfig, setShowConfig] = useState(true);
   const [isEditingCredentials, setIsEditingCredentials] = useState(false);
   const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     publicKey: boolean;
     assistantId: boolean;
@@ -711,20 +712,25 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     if (publicKey.startsWith('sk_')) {
       toast({
         title: 'Tipo de chave incorreto',
-        description: '⚠️ Você está usando uma Private Key (sk_...). Use a Public Key (pk_...) para maior segurança.',
+        description: '⚠️ Você está usando uma Private Key (sk_...). Use a Public Key.',
         variant: 'destructive',
       });
       setFieldErrors(prev => ({ ...prev, publicKey: true }));
       return;
     }
-    
-    if (!publicKey.startsWith('pk_') && !publicKey.includes('test')) {
+
+    // Validar se é UUID válido OU começa com pk_
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicKey);
+    const isPkFormat = publicKey.startsWith('pk_');
+
+    if (!isUUID && !isPkFormat && !publicKey.includes('test')) {
       toast({
-        title: 'Formato de chave suspeito',
-        description: 'A Public Key geralmente começa com "pk_". Verifique se copiou a chave correta.',
+        title: 'Formato de chave inválido',
+        description: 'A Public Key deve ser um UUID (formato: xxxxx-xxxxx-...) ou começar com "pk_".',
         variant: 'destructive',
       });
-      // Não bloquear, apenas avisar
+      setFieldErrors(prev => ({ ...prev, publicKey: true }));
+      return;
     }
 
     // Construir analysisPlan apenas com campos preenchidos
@@ -973,6 +979,54 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
     }
   };
 
+  const testConnection = async () => {
+    if (!publicKey.trim()) {
+      toast({
+        title: 'Chave não configurada',
+        description: 'Preencha a Public Key antes de testar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsTestingConnection(true);
+    
+    try {
+      const response = await fetch('https://api.vapi.ai/assistant', {
+        headers: {
+          'Authorization': `Bearer ${publicKey}`,
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          title: '✓ Conexão bem-sucedida',
+          description: 'A Public Key está funcionando corretamente!',
+        });
+      } else if (response.status === 401 || response.status === 403) {
+        toast({
+          title: '✗ Chave inválida',
+          description: 'A Public Key não foi aceita pela Vapi. Verifique se você copiou a chave correta do dashboard.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '⚠ Erro ao testar',
+          description: `Status: ${response.status}. Tente novamente.`,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: '✗ Erro de conexão',
+        description: 'Não foi possível conectar à API da Vapi. Verifique sua internet.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
   const makeOutboundCall = async () => {
     if (!phoneNumber.trim()) {
       toast({
@@ -1046,15 +1100,24 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
       setOutboundStatus('');
       
       let errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      let errorTitle = "Erro ao fazer ligação";
       
-      // Detectar erro de chave inválida
+      // Detectar diferentes tipos de erro
       if (errorMessage.toLowerCase().includes('invalid key') || 
-          errorMessage.toLowerCase().includes('unauthorized')) {
-        errorMessage = '🔑 Chave inválida. Verifique se você está usando a Public Key (pk_...) correta do Vapi.';
+          errorMessage.toLowerCase().includes('unauthorized') ||
+          errorMessage.toLowerCase().includes('401') ||
+          errorMessage.toLowerCase().includes('403')) {
+        errorTitle = '🔑 Autenticação falhou';
+        errorMessage = 'A Public Key não foi aceita pela Vapi.\n\n' +
+                       'Verifique:\n' +
+                       '• Se você copiou a chave completa (sem espaços extras)\n' +
+                       '• Se a chave pertence ao mesmo projeto do Assistant ID\n' +
+                       '• Se a chave tem permissões para fazer chamadas\n\n' +
+                       'Use o botão "Testar Conexão" para verificar.';
       }
       
       toast({
-        title: "Erro ao fazer ligação",
+        title: errorTitle,
         description: errorMessage,
         variant: "destructive",
       });
@@ -1357,8 +1420,10 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         </Badge>
                       </Label>
                       <p className="text-xs text-muted-foreground mb-2">
-                        Use a <strong>Public Key</strong> (começa com <code className="bg-muted px-1 rounded">pk_...</code>).
-                        Não use a Private Key (<code className="bg-muted px-1 rounded">sk_...</code>).
+                        Use a <strong>Public Key</strong> do Vapi Dashboard.
+                        Aceita formatos: <code className="bg-muted px-1 rounded">UUID</code> ou <code className="bg-muted px-1 rounded">pk_...</code>
+                        <br />
+                        ⚠️ Não use a Private Key (<code className="bg-muted px-1 rounded">sk_...</code>).
                       </p>
                       <div className="relative">
                         <Input
@@ -1374,19 +1439,33 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                         />
                         {publicKey && (
                           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            {publicKey.startsWith('pk_') ? (
-                              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
-                                ✓ Pública
-                              </Badge>
-                            ) : publicKey.startsWith('sk_') ? (
-                              <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/20">
-                                ⚠ Privada
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                                ? Desconhecida
-                              </Badge>
-                            )}
+                            {(() => {
+                              const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(publicKey);
+                              const isPkFormat = publicKey.startsWith('pk_');
+                              const isSkFormat = publicKey.startsWith('sk_');
+                              
+                              if (isSkFormat) {
+                                return (
+                                  <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/20">
+                                    ⚠ Privada
+                                  </Badge>
+                                );
+                              }
+                              
+                              if (isUUID || isPkFormat) {
+                                return (
+                                  <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                    ✓ Válida
+                                  </Badge>
+                                );
+                              }
+                              
+                              return (
+                                <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                  ? Desconhecida
+                                </Badge>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -1439,6 +1518,25 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                       <p className="text-xs text-muted-foreground">
                         Necessário apenas se você for fazer chamadas de saída (outbound calls)
                       </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={testConnection}
+                        disabled={!publicKey || isTestingConnection}
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        {isTestingConnection ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Testando...
+                          </>
+                        ) : (
+                          <>🔌 Testar Conexão</>
+                        )}
+                      </Button>
                     </div>
 
                     {/* Webhook Configuration */}
@@ -1968,25 +2066,33 @@ const VapiVoiceModal = ({ open, onOpenChange }: VapiVoiceModalProps) => {
                 <AlertTitle>Credenciais básicas não configuradas</AlertTitle>
                 <AlertDescription className="space-y-2">
                   <p>Configure Public Key e Assistant ID na aba "Chamada de Voz".</p>
-                  <p className="text-xs">
-                    💡 Dica: Encontre sua Public Key em{' '}
-                    <a 
-                      href="https://dashboard.vapi.ai/settings/keys" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="underline hover:text-primary"
+                  
+                  <div className="bg-muted/50 p-2 rounded text-xs space-y-1 mt-2">
+                    <p className="font-medium">💡 Onde encontrar no Vapi Dashboard:</p>
+                    <p>1. <strong>Public Key</strong>: Settings → API Keys → Public API Keys</p>
+                    <p className="ml-4 text-muted-foreground">Formato: UUID (ex: 12ff5e9e-8b8d-...)</p>
+                    <p>2. <strong>Assistant ID</strong>: Assistants → [Seu Assistant]</p>
+                    <p className="ml-4 text-muted-foreground">Formato: UUID (ex: 7b09a672-...)</p>
+                    <p>3. <strong>Phone Number ID</strong>: Phone Numbers → [Seu Número]</p>
+                    <p className="ml-4 text-muted-foreground">Formato: UUID (ex: 3c4d8e1f-...)</p>
+                  </div>
+                  
+                  <div className="flex gap-2 mt-3">
+                    <Button 
+                      onClick={() => setActiveTab('inbound')}
+                      variant="outline"
+                      size="sm"
                     >
-                      Vapi Dashboard → Settings → API Keys
-                    </a>
-                  </p>
-                  <Button 
-                    onClick={() => setActiveTab('inbound')}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                  >
-                    Ir para Configurações
-                  </Button>
+                      Ir para Configurações
+                    </Button>
+                    <Button
+                      onClick={() => window.open('https://dashboard.vapi.ai/settings/keys', '_blank')}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      Abrir Vapi Dashboard
+                    </Button>
+                  </div>
                 </AlertDescription>
               </Alert>
             ) : !phoneNumberId ? (
