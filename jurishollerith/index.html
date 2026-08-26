@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#020812">
+<title>JurisHollerith IA — Pitch para Escritórios</title>
+<meta name="description" content="Apresentação comercial do JurisHollerith IA para escritórios especializados em Direito do Servidor Público.">
+<style>
+:root{--bg:#020812;--panel:rgba(7,18,34,.92);--muted:#9cb0c5;--accent:#22e7c3;--accent2:#37bdf8}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:white}
+body{user-select:none}#stage{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 100%,rgba(24,108,157,.15),transparent 38%),linear-gradient(180deg,#01050b,#020812)}
+.screen{position:relative;width:min(100vw,calc(100vh*16/9));height:min(100vh,calc(100vw*9/16));overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.38);background:#06101e}
+.sprite{position:absolute;left:0;top:0;width:100%;height:auto;display:block;transform:translateY(calc(var(--index,0)*-7.142857142857%));transition:transform .22s ease;will-change:transform}
+.chrome{position:fixed;inset:0;pointer-events:none;transition:opacity .2s}body.hide-ui .chrome{opacity:0}
+.topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;font-size:12px;color:var(--muted);background:linear-gradient(180deg,rgba(0,0,0,.48),transparent)}
+.brand{font-weight:750;color:#dce9f4;letter-spacing:.02em}.controls{pointer-events:auto;position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.08);background:var(--panel);backdrop-filter:blur(14px);border-radius:999px;box-shadow:0 14px 50px rgba(0,0,0,.35)}
+.controls button{appearance:none;border:0;border-radius:999px;width:42px;height:42px;background:transparent;color:#e4eef7;cursor:pointer;font-size:19px;display:grid;place-items:center}.controls button:hover{background:rgba(255,255,255,.08)}
+.progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,.06)}.progress>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+#overview{position:fixed;inset:0;z-index:20;display:none;overflow:auto;padding:64px 24px 36px;background:rgba(1,6,13,.97);backdrop-filter:blur(18px)}#overview.open{display:block}
+.overview-head{position:fixed;top:0;left:0;right:0;height:50px;z-index:22;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(1,6,13,.94);border-bottom:1px solid rgba(255,255,255,.08)}
+.overview-head button{border:1px solid rgba(255,255,255,.1);background:#0a1726;color:white;border-radius:9px;padding:8px 12px;cursor:pointer}
+.grid{max-width:1500px;margin:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}
+.thumb{padding:0;border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:#07111f;color:white;text-align:left;cursor:pointer;box-shadow:0 14px 40px rgba(0,0,0,.25)}.thumb:hover{border-color:rgba(92,224,255,.55);transform:translateY(-1px)}
+.thumb-view{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#06101e}.thumb-view img{position:absolute;left:0;top:0;width:100%;height:auto;transform:translateY(calc(var(--i)*-7.142857142857%))}
+.thumb>span{display:block;padding:11px 12px 13px;font-size:13px;line-height:1.3;color:#c9d8e6}
+@media(max-width:700px){.topbar{padding:10px 12px;font-size:10px}.brand{max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.controls{bottom:14px}.controls button{width:40px;height:40px}#overview{padding:58px 12px 24px}.grid{grid-template-columns:1fr;gap:12px}}
+</style>
+</head>
+<body>
+<main id="stage">
+  <div class="screen"><img id="sprite" class="sprite" src="slides.jpg" alt="Apresentação JurisHollerith IA"></div>
+</main>
+<div class="chrome">
+  <div class="topbar"><div class="brand">JURISHOLLERITH IA · PITCH PARA ESCRITÓRIOS</div><div><span id="current">01</span> / 14</div></div>
+  <div class="controls">
+    <button id="prev" aria-label="Slide anterior" title="Anterior">‹</button>
+    <button id="overviewBtn" aria-label="Visão geral" title="Visão geral">▦</button>
+    <button id="fullscreenBtn" aria-label="Tela cheia" title="Tela cheia">⛶</button>
+    <button id="next" aria-label="Próximo slide" title="Próximo">›</button>
+  </div>
+  <div class="progress"><div id="bar"></div></div>
+</div>
+<section id="overview" aria-label="Visão geral dos slides">
+  <div class="overview-head"><strong>Visão geral</strong><button id="closeOverview">Fechar</button></div>
+  <div class="grid"><button class="thumb" data-go="0"><div class="thumb-view"><img src="slides.jpg" style="--i:0" alt=""></div><span>01 · JurisHollerith IA</span></button>
+<button class="thumb" data-go="1"><div class="thumb-view"><img src="slides.jpg" style="--i:1" alt=""></div><span>02 · O escritório já tem a carteira. O gargalo é revisar tudo.</span></button>
+<button class="thumb" data-go="2"><div class="thumb-view"><img src="slides.jpg" style="--i:2" alt=""></div><span>03 · Não vendemos OCR. Vendemos capacidade de varredura de carteira.</span></button>
+<button class="thumb" data-go="3"><div class="thumb-view"><img src="slides.jpg" style="--i:3" alt=""></div><span>04 · Por que agora?</span></button>
+<button class="thumb" data-go="4"><div class="thumb-view"><img src="slides.jpg" style="--i:4" alt=""></div><span>05 · Como funciona</span></button>
+<button class="thumb" data-go="5"><div class="thumb-view"><img src="slides.jpg" style="--i:5" alt=""></div><span>06 · Tese Cards: o núcleo proprietário</span></button>
+<button class="thumb" data-go="6"><div class="thumb-view"><img src="slides.jpg" style="--i:6" alt=""></div><span>07 · Exemplo de Tese Card: RRA / Bonificação por Resultado</span></button>
+<button class="thumb" data-go="7"><div class="thumb-view"><img src="slides.jpg" style="--i:7" alt=""></div><span>08 · O que o escritório recebe</span></button>
+<button class="thumb" data-go="8"><div class="thumb-view"><img src="slides.jpg" style="--i:8" alt=""></div><span>09 · Proposta de piloto</span></button>
+<button class="thumb" data-go="9"><div class="thumb-view"><img src="slides.jpg" style="--i:9" alt=""></div><span>10 · A unidade é o servidor</span></button>
+<button class="thumb" data-go="10"><div class="thumb-view"><img src="slides.jpg" style="--i:10" alt=""></div><span>11 · Limites claros para proteger todos</span></button>
+<button class="thumb" data-go="11"><div class="thumb-view"><img src="slides.jpg" style="--i:11" alt=""></div><span>12 · Segurança jurídica embutida na arquitetura</span></button>
+<button class="thumb" data-go="12"><div class="thumb-view"><img src="slides.jpg" style="--i:12" alt=""></div><span>13 · Quem deve entrar no piloto?</span></button>
+<button class="thumb" data-go="13"><div class="thumb-view"><img src="slides.jpg" style="--i:13" alt=""></div><span>14 · Rodar um diagnóstico controlado da carteira.</span></button></div>
+</section>
+<script>
+(()=>{
+const total=14,sprite=document.getElementById('sprite'),cur=document.getElementById('current'),bar=document.getElementById('bar'),overview=document.getElementById('overview');
+let i=0,startX=null,timer=null;
+const clamp=n=>Math.max(0,Math.min(total-1,n));
+const titles=["JurisHollerith IA", "O escritório já tem a carteira. O gargalo é revisar tudo.", "Não vendemos OCR. Vendemos capacidade de varredura de carteira.", "Por que agora?", "Como funciona", "Tese Cards: o núcleo proprietário", "Exemplo de Tese Card: RRA / Bonificação por Resultado", "O que o escritório recebe", "Proposta de piloto", "A unidade é o servidor", "Limites claros para proteger todos", "Segurança jurídica embutida na arquitetura", "Quem deve entrar no piloto?", "Rodar um diagnóstico controlado da carteira."];
+function show(n){i=clamp(n);sprite.style.setProperty('--index',i);cur.textContent=String(i+1).padStart(2,'0');bar.style.width=((i+1)/total*100)+'%';history.replaceState(null,'','#'+(i+1));document.title=titles[i]+' — JurisHollerith IA'}
+const next=()=>show(i+1),prev=()=>show(i-1);
+document.getElementById('next').onclick=next;document.getElementById('prev').onclick=prev;
+document.getElementById('overviewBtn').onclick=()=>overview.classList.toggle('open');document.getElementById('closeOverview').onclick=()=>overview.classList.remove('open');
+document.getElementById('fullscreenBtn').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await document.documentElement.requestFullscreen()}catch(e){}};
+document.querySelectorAll('.thumb').forEach(b=>b.onclick=()=>{show(+b.dataset.go);overview.classList.remove('open')});
+function wake(){document.body.classList.remove('hide-ui');clearTimeout(timer);timer=setTimeout(()=>document.body.classList.add('hide-ui'),3500)}
+document.addEventListener('mousemove',wake,{passive:true});
+document.addEventListener('keydown',e=>{wake();if(e.key==='Escape'){overview.classList.remove('open');return}if(overview.classList.contains('open'))return;if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();next()}else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev()}else if(e.key==='Home')show(0);else if(e.key==='End')show(total-1);else if(e.key.toLowerCase()==='o')overview.classList.toggle('open');else if(e.key.toLowerCase()==='f')document.getElementById('fullscreenBtn').click();else if(e.key.toLowerCase()==='h')document.body.classList.toggle('hide-ui')});
+document.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;wake()},{passive:true});
+document.addEventListener('touchend',e=>{if(startX==null)return;const dx=e.changedTouches[0].clientX-startX;if(Math.abs(dx)>45)(dx<0?next:prev)();startX=null},{passive:true});
+const hash=Number(location.hash.slice(1));show(Number.isFinite(hash)&&hash>=1?hash-1:0);wake();
+})();
+</script>
+</body>
+</html>
